@@ -1,6 +1,8 @@
 
 ### 1. 트랜잭션 격리 수준
 
+---
+
 - 트랜잭션 격리 수준이란 트랜잭션이 동시에 처리될 때, ***특정 트랜잭션이 다른 트랜잭션에서 변경하거나 조회하는 데이터를 볼 수 있게 허용할지 말지를 결정***하는 것이다.
 - 격리 수준에 따라서 4가지 정도 분류가 된다. 순서가 밑에 있을 수록 격리 수준이 높다.
   - READ UNCOMMITED
@@ -10,6 +12,8 @@
 
 
 ### 2. READ UNCOMMITED
+
+---
 
 - READ UNCOMMITED란 더티 리드(Dirty Read)가 허용되어 있는 격리 수준이다.
     > 더티 리드란 트랜잭션에서 처리한 작업이 완료되지 않은 상태에서도 다른 트랜잭션에서 해당 데이터를 조회할 수 있다.
@@ -58,6 +62,8 @@
     ```
 
 ### 3. READ COMMITED
+
+---
 
 - READ COMMITED 격리 수준에서는 더티 리드가 발생하지 않는다.
   - 어떤 트랜잭션에서 데이터를 변경했어도 commit이 완료된 데이터만 다른 트랜잭션에서 조회할 수 있다.
@@ -116,6 +122,78 @@
 
     commit;
     ```
+
+### 4. REPEATABLE READ
+
+---
+
+- 일반적으로 DBMS는 ***하나의 트랜잭션이 진행되는 동안 데이터 변경 전/후에 대한 백업 공간***을 둔다.
+  - 이러한 백업 공간을 언두 영역이라고한다.
+  - 언두 영역을 두는 이유는 바로 데이터 정합성을 위한 것이다.
+    - 물론 언두 영역이 단순히 트랜잭션의 데이터 정합성을 위해서만 사용하지 않는다.
+    - 롤백의 경우 레코드를 다시 원복 시키기 위하여 언두 영역에서 이전 데이터를 가져온다. 
+  - 아까 READ COMMIT 격리 수준에서 처음 select에서는 데이터가 존재하지 않았다가, 중간에 데이터가 삽입되었을 때, 두번째 select에서는 데이터가 나오는 Non-Repeatable Read가 발생하였다.
+- REPEATABLE READ 격리 수준에서는 언두 영역의 데이터들 덕분에 Non-Repeatable Read가 발생하지 않는다.
+
+#### 4.1. REPEATABLE READ 격리 수준에서 Non-Repeatable Read가 발생하지 않는지 확인해보기
+
+- 아래의 SQL 문을 각기 다른 세션에서 순차적으로 실행하다 보면 실제로 Non-Repeatable Read가 발생하지 않는지 확인할 수 있다.
+
+1. 회원 테이블 생성
+    ```sql
+    create table member (
+        id int not null primary key,
+        member_id varchar(20) not null,
+        member_name varchar(20) not null
+    );
+    ```
+
+2. Non-Repeatable Read가 발생하지 않는지 확인
+    ```sql
+    set session autocommit = false;
+    set session transaction isolation level REPEATABLE READ;
+    start transaction;
+
+    -- 트랜잭션 격리 수준 확인
+    SELECT @@tx_isolation;
+
+    -- 데이터가 존재하지 않음
+    select * from member;
+
+    -- Non-Repeatable Read 문제가 안일어나는지 확인하기 위하여 sleep
+    do sleep(10);
+
+    -- 데이터가 삽입되었어도 동일한 결과를 얻기 위해서 언두 로그에서 조회
+    select * from member;
+
+    commit;
+    ```
+3. 첫번째 select문 실행 이후 insert 작업 진행
+    ```sql
+    set session autocommit = false;
+    start transaction;
+
+    SELECT @@tx_isolation;
+
+    insert into member values (1, 'memberId1', 'memberName1');
+
+    commit;
+    ```
+
+#### 4.2. REPEATABLE READ 격리 수준에서 왜 Non-Repeatable Read가 발생하지 않을까?
+
+![](./img/REPEATABLE_COMMIT.png)
+
+- 사용자 B가 member 테이블에서 회원을 조회한다.
+- 사용자 B의 트랜잭션이 종료되기 전에 사용자 A가 데이터를 삽입하였다.
+  - 데이터를 삽입하는 순간 테이블에 데이터에는 삽입되지만, 언두 로그에는 변경 전 데이터를 저장하기 위하여 아무 기록도 하지 않았다.
+- 사용자 A의 트랜잭션이 종료된 이후, member 테이블에서 회원을 다시 한번 조회한다.
+  - member 테이블에서 레코드를 조회하였을때 사용자 B의 TRX-ID(10) 이내의 트랜잭션이 없다.
+  - 때문에 언두 영역에서 데이터를 조회한다.
+- ***REPEATABLE READ는 트랜잭션 번호를 조회하여 먼저 실행된 트랜잭션의 데이터만 조회***한다.
+- ***테이블 레코드에 먼저 실행된 트랜잭션 데이터가 존재하지 않는다면 언두 로그에서 데이터를 조회***한다.
+- 
+
 
 
 > Real MySql 8.0 개발자와 DBA를 위한 MySQL 실전 가이드, 백은비,이성욱, P176-183 <br/>
