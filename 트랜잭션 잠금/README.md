@@ -48,7 +48,7 @@ unlock instance
 - 명시적 테이블 락
   - `LOCK TABLES table_name [ READ | WRITE ]` 명령으로 특정 테이블의 락을 획득 가능 
 - 묵시적 테이블 락
-  - sd
+  - 
 
 ### InnoDB 스토리지 엔진 잠금
 
