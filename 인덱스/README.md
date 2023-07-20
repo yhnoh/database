@@ -146,5 +146,67 @@ select gender, birth_date from member where gender='F' and birth_date >= '1965-0
 - 단점은 존재한다.
   - WHERE 조건절에 조건이 없는 인덱스의 선행 컬럼의 유니크한 값의 개수가 적어야 함
   - 쿼리가 인덱스에 존재하는 컬럼만으로 처리 가능해야하 함 (커버링 인덱스)
-- 
+
+
+### 다중 컬럼 인덱스
+---
+
+- 실제 서비스용 데이터베이스에서는 2개 이상의 컬럼을 포함하는 인덱스가 많이 나온다.
+- 중요한 것은 두 번째 컬럼 부터는 앞의 컬럼에 의존해서 정렬되어 있다는 것이다.
+- 따라서 다중 컬럼 인덱스에서는 인덱스 내에서 각 컬럼의 위치가 상당히 중요하다.
+
+### B-Tree 인덱스의 정렬 및 스캔 방향
+
+---
+
+- 인덱스의 키 값은 항상 오름차순이거나 내림차순으로 정렬된다.
+- 하나의 순서로 정렬되어 있다고 해서 그 순서로만 인덱스를 읽을 수 있다는 의미는 아니다.
+- 거꾸로 끝에서 부터 읽으면 오름차순으로 정렬된 인덱스도 내림차순으로 읽을 수 있다.
+  - Double Linked List 구조를 떠올려 보자
+
+- 인덱스의 정렬 
+  - 인덱스의 구성하는 각 컬럼의 정렬은 오름차순 또는 내림차순으로 설정할 수 있다.
+  - 컬럼 단위로 정렬 순서를 사용할 수 있기 때문에 다중 컬럼 인덱스에서도 정렬을 혼합하여 사용할 수 있다.
+    ```sql
+    -- 다중 컬럼 인덱스 생성
+    create index ix_teamname_username on member (team_name asc, user_name desc)
+    ```
+
+- 인덱스의 스캔 방향 
+  - 하나의 컬럼에 오름차순으로 생성된 인덱스를 `max`나 `order by desc` 절을 통해서 값을 가져올 때, 인덱스의 처음부터 끝까지 읽어서 값을 가져올까?
+    ```sql
+    -- 오름차순으로 username 인덱스 생성
+    create index ix_username on member (username asc)
+
+    select max(username) from member;
+    select * from member order by username desc limit 1;
+    ```  
+    - 옵티마이저는 내가 사용한 쿼리를 해석하여 인덱스를 거꾸로 읽으면 최단 시간에 값을 가져온다는 것을 이미 알고 있다.
+    - 때문에 옵티마이저가 읽기 방향을 전환해서 사용하도록 실행 계획을 만들어낸다.
+  - 오름차순으로 생성된 인덱스를 정순으로 읽으면 오름차순으로 정렬된 결과가 나오고, 역순으로 읽으면 내림차순으로 정렬된 상태가 된다.
+- 내가 어떤 정렬순으로 인덱스를 생성해였다고 하더라도 역순으로도 인덱스를 스캔할 수 있다는 것이다.
+
+
+- 인덱스 내림차순
+
+
+### B-Tree 인덱스의 가용성과 효율성
+
+- 비교 조건의 종류와 효율성
+- 인덱스의 특징은 왼쪽 값에 기준해서 오름쪽 값이 정렬되어 있다는 것이다.
+  - 예를 들어 하나의 컬럼에 B1234, A1234라는 값이 있을 경우 A1234, B1234 순으로 인덱스가 정렬되어 있을 것이다.
+- 따라서 왼쪽 값을 모르면 인덱스의 효과를 얻을 수 없다.
+```sql
+-- username을 통해서 인덱스 생성
+create index ix_username on member (username)
+
+-- 왼쪽 값을 모르기 때문에 인덱스 활용 불가
+select * from member where username LIKE '%user'
+select * from member where username LIKE '%user%'
+
+-- 왼쪽 값을 알기 때문에 인덱스 활용 가능
+select * from member where username LIKE 'user%'
+
+```
+
 <span style="color:red">체인지 버퍼 알아보기</span>
