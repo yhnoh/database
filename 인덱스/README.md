@@ -192,6 +192,11 @@ select gender, birth_date from member where gender='F' and birth_date >= '1965-0
 
 ### B-Tree 인덱스의 가용성과 효율성
 
+- 쿼리를 작성할 때 어떤 경우에 인덱스를 사용할 수 있고 어떤 경우에 인덱스를 사용하지 않는지 식별할 수 있어야한다.
+- 그래야만 쿼리의 조건을 최적화하거나, 쿼리에 맞게 인덱스를 최적으로 생성할 수 있다.
+
+- 인덱스의 효율성
+
 - 비교 조건의 종류와 효율성
 - 인덱스의 특징은 왼쪽 값에 기준해서 오름쪽 값이 정렬되어 있다는 것이다.
   - 예를 들어 하나의 컬럼에 B1234, A1234라는 값이 있을 경우 A1234, B1234 순으로 인덱스가 정렬되어 있을 것이다.
@@ -208,5 +213,7 @@ select * from member where username LIKE '%user%'
 select * from member where username LIKE 'user%'
 
 ```
+
+- 위와 같이 인덱스를 생성하였지만 인덱스를 제대로 활용 못하는 경우들이 몇가지 있다.
 
 <span style="color:red">체인지 버퍼 알아보기</span>
