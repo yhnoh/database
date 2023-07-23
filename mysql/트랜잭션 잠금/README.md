@@ -46,10 +46,73 @@ unlock instance
 
 - 테이블 락은 개별 테이블 단위로 설정되는 잠금이다.
 - 명시적 테이블 락
-  - `LOCK TABLES table_name [ READ | WRITE ]` 명령으로 특정 테이블의 락을 획득 가능 
+  - `LOCK TABLES table_name [ READ | WRITE ]` 명령으로 특정 테이블의 락을 획득 가능하다.
+  - `UNLOCK TABLES` 명령으로 잠금을 해제할 수 있다.
 - 묵시적 테이블 락
-  - 
+  - InnoDB 테이블의 경우 스토리지 엔진 차원에서 레코드 기반의 잠금을 제공하기 때문에 단순 테이블 변경 쿼리로 인해 묵시적 테이블 락이 설정되지 않는다.
+  - 데이터 변경 쿼리(DML)가 아닌 스키마를 변경하는 쿼리(DDL)의 경우에는 묵시적 테이블락이 걸릴 수 있다.
+    - 때문에 24시간 실시간으로 사용되는 MySQL 서버의 경우에는 스키마 변경 시 조심해야 한다.
+    > [MySQL/MariaDB, 테이블 락 최소화하여 변경하기](https://jsonobject.tistory.com/515)
 
+### 네임드 락 (Named Lock)
+- 네임드 락은 `GER_LCOK()`함수를 이용해 임의의 문자열에 대해 잠금을 설정할 수 있다.
+- 데이터베이스 객체가 아니라 단순히 사용자가 지정한 문자열에 대해 락을 걸고 해제하나는 방식이다.
+- 하나의 데이터베이스를 많은 애플리케이션에서 사용하고 있을 때, 어떤 정보를 상호 동기화 처리를 할 때 유용하게 사용할 수 있다.
+ 
+```sql
+-- named_lock 문자열에 잠금을 2초동안 획득한다.
+select get_lock('named_lock', 2);
+
+-- named_lock 문자열에 잠금이 설정되어 있는지 확인한다.
+select is_free_lock('named_lock');
+
+-- named_lock 문자열에 획득했던 잠금을 반납하다.
+select release_lock('named_lock');
+
+-- 동시에 모든 네임드 락을 해제 한다.
+select release_all_locks();
+```
+
+### 메타데이터 락 (Metadata Lock)
+- 메타데이터 락은 데이터에비이스 객체의 이름이나 구조를 변경하는 경우에 획득하는 잠금이다.
+- 명시적으로 획득하거나 해제하는 것이 아닌 테이블의 이름을 변경하는 경우 자동으로 획득하는 잠금이다.
+    - 테이블 이름을 변경할 때 원본 이름과 변경될 이름 두개 모두 한꺼번에 잠금을 설정한다.
+- 테이블의 구조를 변경하는 경우 어떻게 하는 것이 효율적인가?
+  - MySQL에서 테이블 구조를 변경하는 경우 메타데이터 테이블 및 대상 테이블 락이 걸리기 때문에 24시간 돌아가는 MySQL 서버의 경우 문제가 발생할 수 있다.
+  - 또한 MySQL 서버의 DDL은 단일 스레드로 작동하기 때문에 많은 시간이 소모되는 것도 문제이다.
+  - 때문에 점진적으로 데이터를 복사해야 한다.
+    ```sql
+    create table new_table (
+
+        -- 컬럼 이름 및 타입 제약 조건 등등 설정...
+    )
+
+    -- thread 1
+    insert into new_table select * from old_table where id >= 0 and id < 10000
+    -- thread 2
+    insert into new_table select * from old_table where id >= 10000 and id < 20000
+    -- thread 3
+    insert into new_table select * from old_table where id >= 30000 and id < 40000
+    ```
+  - 위와 같이 많은 데이터를 일정하게 복사하고 난 뒤에 트랜잭션을 통해서 클라이언트 요청의 중단 없이 실행할 수 있다.
+    ```sql
+    set autocommit=0;
+    
+    -- 작업 대상 테이블에 2개에 대한 테이블 쓰기 락 획득
+    lock tables old_table write, new_table write
+
+    -- 남은 데이터 복사
+    select max(id) as @max_id from old_table;
+    insert into new_table select * from old_table where id > @max_id;
+    commit;
+    
+    -- new_table을 기존 테이블 명으로 변경
+    rename table old_table to old_table_drop, new_table to old_table
+    unlock tables;
+
+    -- 사용하지 않는 테이블 삭제
+    drop table old_table_drop
+    ```
 ### InnoDB 스토리지 엔진 잠금
 
 - InnoDB 스토리지 엔진 내부에서 레코드 기반의 잠금 방식을 탑재하고 있다.
