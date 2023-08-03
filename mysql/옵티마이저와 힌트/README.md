@@ -179,3 +179,76 @@
 
 #### 임시 테이블을 사용하는 GROUP BY
 - GROUP BY의 기준 컬럼이 드라이빙 테이블에 있든 드리븐 테이블에 있든 관계없이 인덱스를 전혀 사용하지 못할 때는 임시 테이블을 사용하여 처리한다.
+
+### DISTINCT 처리
+
+- 특정 컬럼의 유니크한 값만 조회하려면 SELECT 쿼리에 DISTINCT를 사용한다.
+- DISTINCT는 MIN, MAX, COUNT와 같은 집합 함수와 함께 사용되는 경우와 집합 함수를 사용하지 않는 경우 두 가지로 구분할 수 있다.
+  - 이렇게 구분하는 이유는 각 경우에 따라 DISTINCT 처리의 영향을 미치는 범위가 달라지기 때문이다.
+
+#### SELECT DISTNCT
+- SELECT되는 레코드 중에서 유니크한 레코드만 가져오고자 한다면 SELECT DISTNCT 형태의 쿼리 문장을 사용한다.
+  - DISTINCT는 SELECT 하는 레코드를 유니크하게 SELECT 하는 거지 특정 컬럼만 유니크하게 조회하는 것이 아니다.
+  - 때문에 아래와 같이 first_name, last_name 둘다 유니크한 값을 찾아 레코드로 반환하게 된다.
+    - first_name만 유니크한 값을 레코드로 반환하지는 않는다.
+  ```sql 
+  -- 전체 테이블 조회
+  select first_name, last_name from distinct_table order by first_name, last_name;
+  -- 결과
+  +----------+---------+
+  |first_name|last_name|
+  +----------+---------+
+  |noh1      |yeong1   |
+  |noh1      |yeong1   |
+  |noh1      |yeong2   |
+  |noh2      |yeong2   |
+  +----------+---------+
+  select distinct first_name, last_name from distinct_table;
+  +----------+---------+
+  |first_name|last_name|
+  +----------+---------+
+  |noh1      |yeong1   |
+  |noh1      |yeong2   |
+  |noh2      |yeong2   |
+  +----------+---------+
+  ```
+
+#### 집합 함수와 함께 사용된 DISTINCT
+- 집합 함수와 함께 사용된 DISTINCT는 그 집합 함수의 인자로 전달된 컬럼값이 유니크한 것들을 가져온다.
+
+```sql
+select count(distinct t.team_name)
+from distinct_member m join distinct_team t on m.team_id = t.id
+```
+- 해당 쿼리의 경우 distinct_member 테이블과 distinct_team 테이블을 조인한 결과에서 team_name 값만 저장하기 위한 임시 테이블을 만들어서 사용한다.
+  - 해당 임시 테이블이 생성될 때 유니크 인덱스가 생성되기 때문에 레코드 건수가 많아진다면 상당히 느려질 수 있다.
+  - `select count(distinct t.team_name), count(distinct m.member_name) ...`과 같이 컬럼 하나를 추가할 시, member_name컬럼을 저장하는 또 다른 임시 테이블이 필요하게 된다.   
+- 만약 인덱스 컬럼에 대해 집합 함수를 사용한 DISTINCT 처리를 한다면 인덱스를 풀 스캔하거나 레인지 스캔하면서 임시 테이블 없이 처리가 된다. 
+
+### 내부 임시 테이블 활용
+
+- MySQL 엔진이 스토리지 엔진으로부터 받아온 레코드를 정렬하거나 그루핑할 때는 내부적인 임시 테이블(Internal temporary table)을 사용한다.
+- 일반적으로 MySQL 엔진이 사용하는 임시 테이블은 처음에는 메모리에 생성됐다가 테이블의 크기가 커지면 디스크로 옮겨진다.
+  - 특정 케이스에서는 메모리를 거치지 않고 바로 디스크에 임시 테이블이 만들어 지기도 한다.
+- 내부 임시테이블은 사용자가 생성한 임시 테이블과 달리 쿼리 처리가 종료되면 자동으로 삭제되면, 다른 세션이나 쿼리로는 볼 수 없다.
+
+#### 임시 테이블이 필요한 쿼리
+
+1. 유니크 인덱스를 가지는 내부 임시 테이블을 생성하는 쿼리
+   - ORDER BY와 GROUP BY에 명시된 컬럼이 다른 쿼리 
+   - ORDER BY나 GROUP BY에 명시된 조인의 순서상 첫 번째 테이블이 아닌 쿼리
+   - DISTINCT와 ORDER BY가 동시에 존재하는 쿼리
+   - DISTINCT가 인덱스로 처리되지 못하는 쿼리
+2. 유니크 인덱스를 가지지 않는 내부 임시 테이블을 생성하는 쿼리
+   - UNINON을 통해서 테이블을 병합하여 처리하는 쿼리
+   - 쿼리 실행 계획에서 select_type이 DERVED인 쿼리
+
+- 일반적으로 유니크 인덱스가 있는 내부 임시 테이블은 그렇지 않은 쿼리보다 처리 성능이 느리다.
+
+#### 임시 테이블이 디스크에 생성되는 경우
+- 내부 임시 테이블은 기본적으로 메모리 상에서 만들어지지만 몇몇 상황에서는 메모리를 사용하는 것이 아닌 디스크를 사용한다.
+- UNINON이나 UNION ALL에서 SELECT 되는 컬럼 중에서 길이가 512바이트 이상인 컬럼이 있는 경우
+- GROUP BY나 DISTINCT 컬럼에서 512바이트 이상인 크기의 컬럼이 있는 경우
+- 메모리 임시 테이블의 크기가 tmp_table_size 또는 max_heap_table_size 시스템 변수보다 크거나, temptable_max_ram 시스템 변수 값보다 큰 경우
+
+#### 임시 테이블 관련 상태 변수
