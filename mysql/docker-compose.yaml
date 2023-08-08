@@ -1,7 +1,7 @@
 version: "3"
 services:
-  mariadb_service:
-    image: mariadb:10.5.8
+  mysql_service:
+    image: mysql:8.1.0
     ports:
       - 3306:3306
     volumes:
@@ -9,7 +9,6 @@ services:
       - ./data:/var/lib/mysql
     environment:
       MYSQL_ROOT_PASSWORD: 1234
-      MYSQL_DATABASE: test
       MYSQL_USER: sa
       MYSQL_PASSWORD: 1234
       TZ: Asia/Seoul
