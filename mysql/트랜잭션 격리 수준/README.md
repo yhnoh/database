@@ -61,8 +61,8 @@
 
 ---
 
-- READ COMMITED 격리 수준에서는 더티 리드가 발생하지 않는다.
-  - 어떤 트랜잭션에서 데이터를 변경했어도 commit이 완료된 데이터만 다른 트랜잭션에서 조회할 수 있다.
+- READ COMMITED 격리 수준에서는 ***하나의 트랜잭션에서 데이터를 변경했어도 commit이 완료된 데이터만 다른 트랜잭션에서 조회할 수 있다.***
+  - 즉, 더티 리드가 발생하지 않는 트랜잭션 격리 수준이다.
 - 하지만 READ COMMITED 격리 수준에서도 Non-Repeatable Read 데이터 부정합성 문제가 발생한다.
   - ***Non-Repeatable Read는 하나의 트랜잭션에서 동일한 결과값을 보장하지 않는다.***
   - 예를 들어 보자면 이러한 문제가 발생한다.
@@ -101,7 +101,7 @@
 
     -- 동일 트랜잭션인데 데이터가 존재함
     select * from read_commited where name = 'name1';
-
+ 
     commit;
     ```
     - 첫번째 select문의 경우에는 데이터가 존재하지 않았다가 다른 트랜잭션에서 데이터를 삽입했을 때 두번째 select문에서 데이터가 존재하는 것을 확인하기 위하여 sleep문을 활용한다.
@@ -123,71 +123,112 @@
 
 ---
 
-- 일반적으로 DBMS는 ***하나의 트랜잭션이 진행되는 동안 데이터 변경 전/후에 대한 백업 공간***을 둔다.
-  - 이러한 백업 공간을 언두 영역이라고한다.
-  - 언두 영역을 두는 이유는 바로 데이터 정합성을 위한 것이다.
-    - 물론 언두 영역이 단순히 트랜잭션의 데이터 정합성을 위해서만 사용하지 않는다.
-    - 롤백의 경우 레코드를 다시 원복 시키기 위하여 언두 영역에서 이전 데이터를 가져온다. 
-  - 아까 READ COMMIT 격리 수준에서 처음 select에서는 데이터가 존재하지 않았다가, 중간에 데이터가 삽입되었을 때, 두번째 select에서는 데이터가 나오는 Non-Repeatable Read가 발생하였다.
-- REPEATABLE READ 격리 수준에서는 언두 영역의 데이터들 덕분에 Non-Repeatable Read가 발생하지 않는다.
+- REPEATABLE READ 격리 수준은 ***동일 트랜잭션 내에서 동일한 결과를 보여줄 수 있는 트랜잭션 격리 수준***이다.
+  - 동시성 제어 방식인 MVCC를 이용하기 때문에 Non-Repeatable Read가 발생하지 않는다.
+  - 언두 영역에 백업된 이전 데이터를 저장하고, 이를 이용하여 동일 트랜잭션에서 동일한 결과를 보여준다.
+    - 언두 영역이 단순히 트랜잭션의 데이터 정합성을 위해서만 사용되지는 않는다.
+      - 예를 들어 롤백의 경우 레코드를 다시 원복 시키기 위하여 언두 영역에서 이전 데이터를 가져온다.
+    - 때문에 REPEATABLE READ 이상의 격리수준에서만 언두 영역을 활용하는 것은 아니다.
 
-#### 4.1. REPEATABLE READ 격리 수준에서 Non-Repeatable Read가 발생하지 않는지 확인해보기
+#### 4.1. REPEATABLE READ 격리 수준에서 Non-Repeatable Read가 발생하지 않는지 확인해보자
 
-- 아래의 SQL 문을 각기 다른 세션에서 순차적으로 실행하다 보면 실제로 Non-Repeatable Read가 발생하지 않는지 확인할 수 있다.
-
-1. 회원 테이블 생성
+1. Non-Repeatable Read가 발생하지 않는 확인하기 위하여 테이블 생성 및 데이터 삽입
     ```sql
-    create table member (
-        id int not null primary key,
-        member_id varchar(20) not null,
-        member_name varchar(20) not null
+    create table repeatable_read (
+        id int not null auto_increment primary key,
+        name varchar(20) not null
     );
+
+    insert into repeatable_read(name) values ('name1');
     ```
 
-2. Non-Repeatable Read가 발생하지 않는지 확인
+2. 트랜잭션 A에서 Non-Repeatable Read가 발생하지 않는지 확인해보기
     ```sql
     set session autocommit = false;
     set session transaction isolation level REPEATABLE READ;
-    start transaction;
+    start transaction ;
 
-    -- 트랜잭션 격리 수준 확인
-    SELECT @@tx_isolation;
-
-    -- 데이터가 존재하지 않음
-    select * from member;
+    -- 수정되기전 데이터 select
+    select * from repeatable_read;
 
     -- Non-Repeatable Read 문제가 안일어나는지 확인하기 위하여 sleep
     do sleep(10);
 
-    -- 데이터가 삽입되었어도 동일한 결과를 얻기 위해서 언두 로그에서 조회
-    select * from member;
+    -- 언두 영역에서 조회하였기 때문에 데이터가 수정되었어도 동일한 결과 select
+    select * from repeatable_read;
 
     commit;
     ```
-3. 첫번째 select문 실행 이후 insert 작업 진행
+3. 트랜잭션B는 트랜잭션A의 두번째 select문이 실행되기 전에 데이터 수정하기
     ```sql
     set session autocommit = false;
     start transaction;
 
-    SELECT @@tx_isolation;
-
-    insert into member values (1, 'memberId1', 'memberName1');
+    update repeatable_read set name = 'name2' where name = 'name1';
 
     commit;
     ```
 
-#### 4.2. REPEATABLE READ 격리 수준에서 왜 Non-Repeatable Read가 발생하지 않을까?
+#### 4.2. REPEATABLE READ 격리 수준에서 어떻게 Non-Repeatable Read가 발생하지 않는 걸까? 
 
 ![](./img/REPEATABLE_COMMIT.png)
 
-- 사용자 B가 member 테이블에서 회원을 조회한다.
-- 사용자 B의 트랜잭션이 종료되기 전에 사용자 A가 데이터를 삽입하였다.
-  - 데이터를 삽입하는 순간 테이블에 데이터에는 삽입되지만, 언두 로그에는 변경 전 데이터를 저장하기 위하여 아무 기록도 하지 않았다.
-- 사용자 A의 트랜잭션이 종료된 이후, member 테이블에서 회원을 다시 한번 조회한다.
-  - member 테이블에서 레코드를 조회하였을때 사용자 B의 TRX-ID(10) 이내의 트랜잭션이 없다.
-  - 때문에 언두 영역에서 데이터를 조회한다.
+
 - ***REPEATABLE READ는 트랜잭션 번호를 조회하여 먼저 실행된 트랜잭션의 데이터만 조회***한다.
-- ***테이블 레코드에 먼저 실행된 트랜잭션 데이터가 존재하지 않는다면 언두 로그에서 데이터를 조회***한다.
+- ***테이블 레코드에 먼저 실행된 트랜잭션 데이터가 존재하지 않는다면 이전 트랜잭션 번호를 가진 언두 로그에서 데이터를 조회***한다.
+
+
+#### 4.3. Phantom Read
+
+- Repeatable Read가 MVCC를 이용한다고 하여도 데이터 부정합이 일어날 수 있다.
+  - 기본적으로 데이터를 읽고 쓸때는 테이블 전체 잠금이 아닌 레코드 단위의 잠금을 수행한다.
+    - 만약 트랜잭션 A에서 잠금을 이용하여 데이터를 읽고 있을때 다른 트랜잭션B에서 데이터를 변경한다면 레코드가 보였다 안보였다하는 팬텀리드가 발생할 수 있다.
+
+1. 데이터 삭제
+```sql
+-- 기존 데이터 삭제
+delete from repeatable_read;
+```
+
+1. 트랜잭션 A에서 Phantom Read 데이터 부정합을 위하여 두번째 조회시 for update문 추가
+```sql
+set session autocommit = false;
+set session transaction isolation level REPEATABLE READ;
+start transaction ;
+
+-- 데이터 조회 안됨
+select * from repeatable_read where name = 'name1';
+
+--  Phantom Read 데이터 부정합 발생 확인을 위하여 sleep
+do sleep(10);
+
+-- 쓰기 잠금으로 인한, Phantom Read 데이터 부정합 발생
+select * from repeatable_read where name = 'name1' for update;
+
+commit;
+```
+
+3. 트랜잭션B는 트랜잭션A의 두번째 select문이 실행되기 전에 데이터 삽입하기
+
+```sql
+set session autocommit = false;
+start transaction;
+
+insert into repeatable_read(name) value ('name1');
+
+commit;
+```
+
+
+
+- Repeatable Read가 MVCC를 이용한다고 하여도 데이터 부정합이 일어날 수 있다.
+  - 다른 트랜잭션에서의 변경 작업으로 인해 레코드가 보였다 안보였다 하는 팬텀리드가 발생할 수 있다.
+- 레코드에 잠긍이 사용되는 경우 팬텀리드가 일어날 수 있다.
+- 트랜잭션 B가 insert문을 통해서 데이터를 저장할 때 해당 레코드에는 잠금을 걸어두지 않았기 때문에, 잠금 없이 즉시 실행된다.
+- 이때 트랜잭션 A가 데이터를 조회하면 데이터가 조회되는 일이 발생한다.
+- 이렇듯 동일 트랜잭션에서 레코드가 보였다 안보였다다하는 팬텀리드가 발생할 수 있다.
+
+
 - 하지만 REPEATABLE READ에서도 데이터 부정합이 일어날 수 있다.
   - 다른 트랜잭션에서 수행한 변경 작업에 의해 레코드가 보였다 안보였다 하는 팬텀 리드(PHANTOM READ) 가 일어날 수 있다.
   - 레코드에는 쓰기 잠금을 걸어야하는데, 언두 레코드에는 잠금을 걸 수 없기 때문에 이러한 일이 발생한다.
