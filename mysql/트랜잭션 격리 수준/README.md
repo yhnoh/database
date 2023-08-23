@@ -130,7 +130,7 @@
       - 예를 들어 롤백의 경우 레코드를 다시 원복 시키기 위하여 언두 영역에서 이전 데이터를 가져온다.
     - 때문에 REPEATABLE READ 이상의 격리수준에서만 언두 영역을 활용하는 것은 아니다.
 
-#### 4.1. REPEATABLE READ 격리 수준에서 Non-Repeatable Read가 발생하지 않는지 확인해보자
+#### 4.1. Repeatable Read 격리 수준에서 Non-Repeatable Read가 발생하지 않는지 확인해보자
 
 1. Non-Repeatable Read가 발생하지 않는 확인하기 위하여 테이블 생성 및 데이터 삽입
     ```sql
@@ -169,20 +169,24 @@
     commit;
     ```
 
-#### 4.2. REPEATABLE READ 격리 수준에서 어떻게 Non-Repeatable Read가 발생하지 않는 걸까? 
+#### 4.2. Repeatable Read 격리 수준에서 어떻게 Non-Repeatable Read가 발생하지 않는 걸까? 
 
-![](./img/REPEATABLE_COMMIT.png)
+![](./img/repeatable_read.png.png)
 
 
-- ***REPEATABLE READ는 트랜잭션 번호를 조회하여 먼저 실행된 트랜잭션의 데이터만 조회***한다.
+- ***Repeatable Read는 트랜잭션 번호를 조회하여 먼저 실행된 트랜잭션의 데이터만 조회***한다.
 - ***테이블 레코드에 먼저 실행된 트랜잭션 데이터가 존재하지 않는다면 이전 트랜잭션 번호를 가진 언두 로그에서 데이터를 조회***한다.
 
 
-#### 4.3. Phantom Read
+#### 4.3. Repeatable Read는 데이터 부정합이 발생하지 않는가?
 
 - Repeatable Read가 MVCC를 이용한다고 하여도 데이터 부정합이 일어날 수 있다.
-  - 기본적으로 데이터를 읽고 쓸때는 테이블 전체 잠금이 아닌 레코드 단위의 잠금을 수행한다.
-    - 만약 트랜잭션 A에서 잠금을 이용하여 데이터를 읽고 있을때 다른 트랜잭션B에서 데이터를 변경한다면 레코드가 보였다 안보였다하는 팬텀리드가 발생할 수 있다.
+- Repeatable Read가 일어나지 않는 격리 수준에서 동일한 결과를 보여주지 않는 Phantom Read가 발생한다.
+  - 주로 데이터를 추가하거나 삭제할때 발생한다.
+- 주로 쓰기나 읽기 잠금을 통해서 레코드를 읽을 때 해당 문제가 발생한다.
+> MySQL의 경우 갭 락 덕분에 Phantom Read 현상이 잘 발생하지 않는다.
+ 
+#### 4.4. MySQL에서 Phantom Read 현상 확인해보기
 
 1. 데이터 삭제
 ```sql
@@ -202,11 +206,13 @@ select * from repeatable_read where name = 'name1';
 --  Phantom Read 데이터 부정합 발생 확인을 위하여 sleep
 do sleep(10);
 
--- 쓰기 잠금으로 인한, Phantom Read 데이터 부정합 발생
+-- select... for update 쓰기 잠금으로 인한, Phantom Read 데이터 부정합 발생
 select * from repeatable_read where name = 'name1' for update;
 
 commit;
 ```
+  - select... for update 쿼리는 select하는 레코드에 쓰기 잠금을 걸어야하 하는데, 언두 레코드에는 잠금을 걸 수 없다.
+  - 때문에 언두 영역으 변경 전 데이터를 가져오는 것이 아니라 현재 레코드의 값을 가져오게 되는 것이다.
 
 3. 트랜잭션B는 트랜잭션A의 두번째 select문이 실행되기 전에 데이터 삽입하기
 
@@ -219,24 +225,6 @@ insert into repeatable_read(name) value ('name1');
 commit;
 ```
 
-
-
-- Repeatable Read가 MVCC를 이용한다고 하여도 데이터 부정합이 일어날 수 있다.
-  - 다른 트랜잭션에서의 변경 작업으로 인해 레코드가 보였다 안보였다 하는 팬텀리드가 발생할 수 있다.
-- 레코드에 잠긍이 사용되는 경우 팬텀리드가 일어날 수 있다.
-- 트랜잭션 B가 insert문을 통해서 데이터를 저장할 때 해당 레코드에는 잠금을 걸어두지 않았기 때문에, 잠금 없이 즉시 실행된다.
-- 이때 트랜잭션 A가 데이터를 조회하면 데이터가 조회되는 일이 발생한다.
-- 이렇듯 동일 트랜잭션에서 레코드가 보였다 안보였다다하는 팬텀리드가 발생할 수 있다.
-
-
-- 하지만 REPEATABLE READ에서도 데이터 부정합이 일어날 수 있다.
-  - 다른 트랜잭션에서 수행한 변경 작업에 의해 레코드가 보였다 안보였다 하는 팬텀 리드(PHANTOM READ) 가 일어날 수 있다.
-  - 레코드에는 쓰기 잠금을 걸어야하는데, 언두 레코드에는 잠금을 걸 수 없기 때문에 이러한 일이 발생한다.
-- InnoDB 스토리지 엔진에서는 갭 락과 넥스트 키 락 덕분에 REPEATABLE READ 격리 수준에서도 이미 Phantom Read 가 발생하지 않기 때문에 굳이 Serializable을 사용할 필요성은 없어보인다.
-> TODO: 팬텀 리드에 대해서 좀 더 자세히 알아보기. 지금은 무슨말인지 잘 모르겠음
-
-
-
 ### 5. SERIALIZABLE
 
 ---
@@ -245,13 +233,10 @@ commit;
   - 그만큼 ***동시 처리 성능도 다른 트랜잭션 격리 수준보다 떨어진다.***
 - Serializable 트랜잭션 격리 수준에서 동시 처리 성능이 떨어지는 이유는 InnoDB 테이블에서도 ***읽기 작업도 공유 잠금(읽기 잠금)을 획득해야만 하기 때문이다.***
   - 이는 하나의 트랜잭션이 읽고 쓰는 작업을 진행하는 동안, 다른 트랜잭션에서는 절대 접근할 수 없다는 것이다.
-- 동서 처리 성능이 떨어지기 때문에 웹프로그래밍과 같은 곳에서는 자주 사용할 일은 없다.
-> InnoDB 테이블에서 기본적으로 순수한 SELECT 작업은 아무런 레코드 잠금도 설정하지 않고 실행한다. <br/>
-> InnoDB 매뉴얼에서 자주 나타나는 Non-locking consistent read (잠금이 필요 없는 일관된 읽기)라는 말이 이를 의미하는 것이다.
   
 
 
-
 > Real MySql 8.0 개발자와 DBA를 위한 MySQL 실전 가이드, 백은비,이성욱, P176-183 <br/>
+> https://en.wikipedia.org/wiki/Isolation_(database_systems) <br/>
 > https://mangkyu.tistory.com/299 <br/>
 > https://mangkyu.tistory.com/300 <br/>
