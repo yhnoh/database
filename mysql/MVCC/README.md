@@ -14,7 +14,7 @@
 
 #### 2.2. 비관적 락(Pessimisitic Lock)을 활용한 동시성 제어
 
-> 비관적 락이란 여러 트랜잭션이 데이터를 동시에 수정하는다는 것을 가정하여, 하나의 트랜재션이 특정 데이터에 접근 하고 있으면 다른 트랜잭션이 접근을 못하도록 막는 동시성 제어 방법이다.
+> 비관적 락이란 여러 트랜잭션이 데이터를 동시에 수정하는다는 것을 가정하여, 하나의 트랜잭션이 특정 데이터에 접근 하고 있으면 다른 트랜잭션이 접근을 못하도록 막는 동시성 제어 방법이다.
 
 - 위와 같은 문제를 해결하기 위한 가장 간단한 방법은 동시에 접근하는 레코드에 비관적 락을 활용하여 동시성을 제어하는 것이다.
   - 트랜잭션 격리 수준에서 SERIALIZABLE 레벨의 격리 수준을 생각하면 된다.
@@ -61,6 +61,5 @@
 
 
 
-> https://en.wikipedia.org/wiki/Multiversion_concurrency_control
-> https://sabarada.tistory.com/175
-> https://mangkyu.tistory.com/53
+> https://en.wikipedia.org/wiki/Multiversion_concurrency_control <br/>
+> https://mangkyu.tistory.com/53 <br/>
