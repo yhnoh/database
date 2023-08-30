@@ -55,9 +55,10 @@
   - READ_UNCOMMITED
     - 격리 수준이 READ_UNCOMMITED인 경우에는 데이터가 커밋됐든 아니든 변경된 상태의 데이터를 반환한다.
     - 때문에 InnoDB 버퍼 풀이 현재 가지고 있는 변경된 데이터를 읽어서 반환한다.
-  - READ_COMMITED이나 그 이상의 격리 수준인 경우
+  - READ_COMMITED, REPEATABLE_READ 격리 수준인 경우
     - 해당 격리 수준에서는 변경된 레코드가 아직 커밋되지 않았기 때문에 언두 영역의 데이터를 반환한다.
-
+- MVCC 기술 덕분에 ***잠금없는 읽기 작업(Non-Locking Consistent Read)을 수행***할 수 있다.
+  - 격리 수준이 SERIALIZABLE인 경우에는 접근하는 레코드에 잠금을 걸기 때문에 해당사항이 아니다.
 
 
 
