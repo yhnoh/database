@@ -116,7 +116,7 @@
 - 갭 락은 레코드 자체가 아니라 ***레코드와 바로 인접한 레코드 사이의 간격만을 잠그는 것을 의미***한다.
   - 레코드 사이의 간격에 새로운 레코드가 생성되거나 삭제되는 것을 제어한다.
 - MySQL은 레코드 잠금이 아닌, 인덱스 잠금을 수행하기 때문에 아직 존재하지는 않지만 지정된 범위에 해당하는 인덱스 테이블 공간을 대상으로 잠금을 거는 것이 아닌지 유추해볼 수 있다.
-
+  - 프라이머리키나 유니크 인덱스의 경우에는 중복이 되지 않기 때문에 갭락이 발생하지 않는다. 
 
 #### 2.3.1. 갭락 확인해보기
 
@@ -136,7 +136,7 @@
   ```sql
   start transaction;
 
-  update gap_lock set age = 20 where name like 'name%';
+  update gap_lock set age = 20 where name = 'name1';
   select '트랜잭션 A UPDATE';
   -- 갭 락을 확인하기 위한 sleep문
   do sleep(30);
@@ -150,7 +150,7 @@
   start transaction;
 
   -- 트랜잭션 A에서 데이터 변경을 했을 때, 트랜잭션 B에서 잠금이 되는지 확인
-  insert into gap_lock(name) value ('name4');
+  insert into gap_lock(name, age) value ('abc', 30);
   select '트랜잭션 B INSERT';
 
   do sleep(30);
@@ -160,13 +160,30 @@
   commit;
   ```
 - 트랜잭션 A에서 `name` 인덱스를 통해서 데이터를 변경하고 있기 때문에, 해당 레코드에 근접한 레코드가 삽입되지 않는 것을 트랜잭션 B에서 확인할 수 있다.
+- 프라이머리 키나 유니크 인덱스의 경우 갭 락이 걸리지 않는 것은 아래의 테이블을 생성하여 확인할 수 있다.
+  ```sql
+  -- 프라이머리 키를 가진 테이블 생성
+  create table gap_lock (
+        name varchar(20),
+        age int
+  );
+  --------------------------------------------------------------------------
 
-### 4. 넥스트 키 락 (Next Key Lock)
+  -- 유니크 인덱스를 가진 테이블 생성
+  create table gap_lock (
+      name varchar(20),
+      age int
+  );
+
+  create unique index uix_name on gap_lock (name);
+  ```
+
+### 2.4. 넥스트 키 락 (Next Key Lock)
 - 레코드 락과 갭 락을 합쳐 놓은 형태의 잠금을 넥스트 키 락이라고 한다.
-- 마스터 서버에서 실행된 쿼리가 레플리카 서버에서 실행될 때 동일한 결과를 만들어내도록 보장하느 것이 주 목적이다.
+- 마스터 서버에서 실행된 쿼리가 레플리카 서버에서 실행될 때 동일한 결과를 만들어내도록 보장하는 것이 주 목적이다.
 
 
-### 5. 자동 증가 락 (Auto Increment Lock)
+### 2.5. 자동 증가 락 (Auto Increment Lock)
 - 자동 증가하는 숫자 값을 추출(채번)하기 위해서 AUTO_INCREMENT라는 컬럼 속성을 제공한다.
   - AUTO_INCREMENT 컬럼이 사용된 테이블에서 동시에 여러 레코드가 INSERT되는 경우, 저장되는 각 레코드는 중복되지 않고 저장된 순서대로 증가하는 일련 번호 값을 가져아한다.
 - InnoDB 스토리지 엔진에서는 이를 위해 내부적으로 자동 증가 락이라고 하는 테이블 수준의 잠금을 사용한다.
