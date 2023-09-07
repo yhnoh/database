@@ -337,14 +337,14 @@
     - 해당 예제는 INSERT만 일어나는 테이블에 대해서만 해당되기 때문에 데이터가 변경되는 테이블에 대해서 어떻게 메타데이터 락을 최소화할지도 고민해봐야 한다.
 3. 지속적인 스키마 리팩토링
    - 지속적인 스키마 리팩토링을 통해서 단순화된 스키마를 만들어내고, 이로 인해 DDL 작업을 통해서 메타데이터 락 발생 가능성을 줄일 수 있다.
-4. DDL문 활용시 최소한의 
+4. DDL문 사용시, 락 최소화하여 스키마 변경하기
    > [MySQL/MariaDB, 테이블 락 최소화하여 변경하기](https://jsonobject.tistory.com/515)
 5. DDL 변경을 써드파티 마이그레이션 툴 사용
-   > [gh-ost](https://github.com/github/gh-ost)
-      > [gh-ost : MySQL online DDL Tool - 온라인 DDL](https://hoing.io/archives/4515)
-   > [pt-online-schema-change](https://docs.percona.com/percona-toolkit/pt-online-schema-change.html)
-      > [[Tech] 플랫폼 서버 엔지니어의 pt-osc 도입기](https://www.rapportlabs.kr/product_2023_ptosc)
-   - https://medium.com/daangn/mysql-online-ddl-faf47439084c
+   > [gh-ost](https://github.com/github/gh-ost) <br/>
+      > [gh-ost : MySQL online DDL Tool - 온라인 DDL](https://hoing.io/archives/4515) <br/>
+   > [pt-online-schema-change](https://docs.percona.com/percona-toolkit/pt-online-schema-change.html) <br/>
+      > [[Tech] 플랫폼 서버 엔지니어의 pt-osc 도입기](https://www.rapportlabs.kr/product_2023_ptosc) <br/>
+   > https://medium.com/daangn/mysql-online-ddl-faf47439084c <br/>
 
 ### 3.3. 글로벌 락 (Global Lock)
 
