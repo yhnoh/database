@@ -18,40 +18,63 @@
 - 쿼리 실행 엔진의 요청에 따라서 메모리나 디스크로부터 데이터를 읽어오거나 저장하는 역할을 담당한다.
   - 버퍼풀에 데이터가 존재할 경우 해당 데이터를 리턴하거나 (글로벌 메모리 영역), 사용자 요청에 따라 임시 메모리를 생성(로컬 메모리 영역)하여 데이터를 리턴한다.
 - 스토리지 엔진에서 모든 데이터를 가공하고 리턴할거라고 예상되지만 실제로는 그렇지 않다.
-- 인덱스를 통해서 레코드를 읽어오는 작업은 스토리지 엔진이 담당하지만, 추가적인 연산이나 가공 작업은 MySQL 엔진에서 수행하게 된다.
+![](./img/query_execution_select.png)
+- 디스크로부터 레코드를 읽어오는 작업은 스토리지 엔진이 담당하지만, 추가적인 연산이나 가공 작업은 MySQL 엔진에서 수행하게 된다.
 - 때문에 단순히 인덱스를 통해서 레코드를 읽어들였다고 하더라도, MySQL 엔진에서의 추가적인 연산이나 가공작업이 많을 경우 클라이언트의 응답 속도가 저하될 수 있다.
 
-- 
+#### MySQL엔진에서 추가적인 연산이나 가공 작업을 하는지 확인하기 
+- MySQL 엔진 레이어에서 별도의 가공을 해서 필터링 작업을 처리한 경우에 `Extra` 컬럼에 `Using Where` 코멘트가 표시된다.
+- `Using Where`는 실행 계획 `Extra` 컬럼에서 가장 흔하게 표시되는 값이지만, 왜 이런 값이 나오는지 이해할 수없을 때도 많다.
+    - 특히 프라이머리 키로 조회 했을 때, `Using Where` 절이 나오는 경우가 흔하게 발생한다.
+    ```sql
+    -- emp_no는 primary key 값
+    explain select * from query_execution where emp_no between 10000 and 10100;
 
-- explian명령어를 통해서 filterd 컬럼을 확인하여 스토리지엔진으로 부터 들고온 데이터를 MySQL엔진에서 필터링 했는지를 확인할 수 있다.
-  > filtered 컬럼
-  - filtered 컬럼의 값은 필터링되고 남은 레코드의 비율을 의미한다.
+    +--+-----------+---------------+----------+-----+-------------+-------+-------+----+----+--------+-----------+
+    |id|select_type|table          |partitions|type |possible_keys|key    |key_len|ref |rows|filtered|Extra      |
+    +--+-----------+---------------+----------+-----+-------------+-------+-------+----+----+--------+-----------+
+    |1 |SIMPLE     |query_execution|null      |range|PRIMARY      |PRIMARY|4      |null|100 |100     |Using where|
+    +--+-----------+---------------+----------+-----+-------------+-------+-------+----+----+--------+-----------+
+    ```
+- 때문에 실행 계획에서 filterd 컬럼의 값을 같이 확인하여 MySQL 엔진에서 필터링 되었는지를 확인할 수 있다.
+  > filter 컬럼의 값은 필터링되고 버려지는 레코드 비율이 아닌, 필터링되고 남은 레코드의 비율을 의미한다. <br/>
+  > filter 컬럼의 값은 정확히 예측되는 값이 아니므로 좀 더 정확히 예측하기 위해서는 히스토그램을 활용해야한다.
 
-1. 
 
 ```sql
+-- 인덱스 생성
+create index ix_first_name_gender on query_execution (first_name, gender);
+-- gender, first_name 일치 건수 : 326건
+select count(*) from query_execution where gender = 'M' and first_name in ('Zvonko', 'Zongyan');
+-- gender, first_name, last_name 일치 건수 : 3건
+select count(*) from query_execution where gender = 'M' and first_name in ('Zvonko', 'Zongyan') and last_name = 'Spataro';
 
--- emp_no에 primary_key 생성
+-- 실행 계획
+explain select * from query_execution where gender = 'M' and first_name in ('Zvonko', 'Zongyan') and last_name = 'Spataro';
 
--- emp_no를 만족하는 레코드 수: 1000건
-select count(*) from query_execution where emp_no between 10000 and 11000;
--- emp_no,gender를 만족하는 레코드 수:610건
-select count(*) from query_execution where emp_no between 10000 and 11000 and gender = 'M';
-
--- wjs
-explain select * from query_execution where emp_no between 10000 and 11000 and gender = 'M';
-
-+--+-----------+---------------+----------+-----+-------------+-------+-------+----+----+--------+-----------+
-|id|select_type|table          |partitions|type |possible_keys|key    |key_len|ref |rows|filtered|Extra      |
-+--+-----------+---------------+----------+-----+-------------+-------+-------+----+----+--------+-----------+
-|1 |SIMPLE     |query_execution|null      |range|PRIMARY      |PRIMARY|4      |null|1000|10      |Using where|
-+--+-----------+---------------+----------+-----+-------------+-------+-------+----+----+--------+-----------+
-
+{
+    "id": 1,
+    "select_type": "SIMPLE",
+    "table": "query_execution",
+    "partitions": null,
+    "type": "range",
+    "possible_keys": "ix_first_name_gender",
+    "key": "ix_first_name_gender",
+    "key_len": "64",
+    "ref": null,
+    "rows": 326,
+    "filtered": 10,
+    "Extra": "Using index condition; Using where"
+}
 ```
 
+- `gender, first_name`를 만족하는 레코드 개수는 326건이고, gender, first_name, last_name을 만족하는 레코드 수는 3건이다.
+- 스토리지 엔진에서 326건의 레코드를 읽고 MySQL엔진이 323건의 레코드를 필터링한것을 확인할 수 있다. 
+  - filtered 컬럼의 값은 10으로 나오고 있다.
+- 해당 쿼리는 인덱스를 타고있는 것처럼 보이지만, 실제로는 비효율적인 과정을 거치고 있다.
+  - 최적화를 위해서는 `gender, first_name, last_name`에 전부 인덱스를 걸어야한다.
 
 
-- 스토리지 엔진은 디스크나 메모리상에서 필요한 레코드를 읽거나 저장하는 역할을 하며, MySQL 엔진은 스토리지 엔진으로부터 받은 레코드를 가공 또는 연산하는 작업을 한다.
 
 
 
