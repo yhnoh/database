@@ -91,9 +91,9 @@ explain select * from query_execution where gender = 'M' and first_name in ('Zvo
 
 
 
-> Real MySql 8.0 개발자와 DBA를 위한 MySQL 실전 가이드, 백은비,이성욱, 쿼리 실행 구조, P91-92
-> Real MySql 8.0 개발자와 DBA를 위한 MySQL 실전 가이드, 백은비,이성욱, Using Where P489-490
-> 친절한 SQL 튜닝, 조시형, 부분범위 처리 활용 P158-172
-> https://shashwat-creator.medium.com/mysqls-logical-architecture-1-eaaa1f63ec2f
-> https://dev.mysql.com/doc/refman/8.0/en/index-condition-pushdown-optimization.html
+> Real MySql 8.0 개발자와 DBA를 위한 MySQL 실전 가이드, 백은비,이성욱, 쿼리 실행 구조, P91-92 <br/>
+> Real MySql 8.0 개발자와 DBA를 위한 MySQL 실전 가이드, 백은비,이성욱, Using Where P489-490 <br/>
+> 친절한 SQL 튜닝, 조시형, 부분범위 처리 활용 P158-172 <br/>
+> https://shashwat-creator.medium.com/mysqls-logical-architecture-1-eaaa1f63ec2f <br/>
+> https://dev.mysql.com/doc/refman/8.0/en/index-condition-pushdown-optimization.html <br/>
 > https://jojoldu.tistory.com/474
