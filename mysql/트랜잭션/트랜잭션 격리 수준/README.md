@@ -171,7 +171,7 @@
 
 #### 4.2. Repeatable Read 격리 수준에서 어떻게 Non-Repeatable Read가 발생하지 않는 걸까? 
 
-![](./img/repeatable_read.png)
+![](img/repeatable_read.png)
 
 - ***Repeatable Read는 트랜잭션 번호를 조회하여 먼저 실행된 트랜잭션의 데이터만 조회***한다.
 - ***테이블 레코드에 먼저 실행된 트랜잭션 데이터가 존재하지 않는다면 이전 트랜잭션 번호를 가진 언두 로그에서 데이터를 조회***한다.
