@@ -75,21 +75,55 @@ explain select * from salaries where salary <> 40006;
 - 그 이외에 범위 검색을 사용 시, 인덱스 스캔의 비효율이 일어나는지 한번 알아보자.
 
 #### 2.1. BETWEEN
-- BETWEEN은 많은 개발자들이 사용하는 SQL 조건문 중에 하나이다.
-- BETWEEN의 경우 인덱스 수직적 탐색이후 수평적 탐색을 진행하며, 인덱스 후행 컬럼의 추가적인 조건으로 인해서 인덱스가 필터링 될 수 있다.
-  - 인덱스가 필터링 되는 순간부터 인덱스 스캔의 비효율 성이 발생하는 것이다.
-  - 때문에 BETWEEN 절에서의 조건 범위가 좁다면, IN 절을 활용하는 것이 스캔의 비효율 성을 줄여줄 수 있다.
-  - IN 절의 경우에는 IN-iterator 방식으로 조회하게 된다.
-  ```SQL
-  -- age, name 순으로 인덱스 설정
-  select * from employee where age in (15, 16, 17) and name = '홍길동';
-  
-  ## 세개의 조건을 UNION ALL 하여 정렬
-  select * from employee where member_class = 15 and name = '홍길동';
-  select * from employee where member_class = 16 and name = '홍길동';
-  select * from employee where member_class = 17 and name = '홍길동';
-  ```
-  - 때문에 인덱스 선행 컬럼을 IN 절로 범위검색을 하여도 In-iterator 방식으로 조회되기 때문에 인덱스 스캔의 비효율이 발생하지 않는다.
+- BETWEEN의 경우 인덱스 수직적 탐색이후 수평적 탐색을 진행하며, 인덱스 후행 컬럼의 조건으로 인해서 스캔 비효율이 밸생할 수 있다.
+- 앞에서 인덱스 선행 컬럼이 등치(=) 조건이 아닐때 생기는 비효율을 확인해보았다.
+  - 선행컬렁에 BETWEEN 절을 사용할 경우 인덱스 필터조건이 발생하며, 불필요한 블록 I/O가 발생할 수 있다.
+```SQL
+-- 인덱스 생성
+create index ix_birthdate_firstname on employees(birth_date, first_name);
+-- 조회 결과 1706건
+select count(*) from employees where birth_date between '1952-02-01' and '1952-02-28';
+-- 조회 결과 1건
+select count(*) from employees where birth_date between '1952-02-01' and '1952-02-28' and first_name = 'Jouni';
+-- 조회 결과 확인
+explain select * from employees where birth_date between '1952-02-01' and '1952-02-28' and first_name = 'Jouni';
+
++--+-----------+---------+----------+-----+----------------------+----------------------+-------+----+----+--------+---------------------+
+|id|select_type|table    |partitions|type |possible_keys         |key                   |key_len|ref |rows|filtered|Extra                |
++--+-----------+---------+----------+-----+----------------------+----------------------+-------+----+----+--------+---------------------+
+|1 |SIMPLE     |employees|null      |range|ix_birthdate_firstname|ix_birthdate_firstname|61     |null|1662|10      |Using index condition|
++--+-----------+---------+----------+-----+----------------------+----------------------+-------+----+----+--------+---------------------+
+```
+- 총 1706건 중에서 1건의 결과만 조회되었으며 나머지는 필터링 되었다는 것을 확인할 수 있다.
+- 만약 각각의 일자별로 `Jouni`이라는 성을 가진 사람을 조회한다고 하여도 총 28건이다.
+- BETWEEN에서 일어나는 인덱스 스캔의 비효율을 해결하기 위해서는 몇가지 방법들이 존재할 것이다. 
+- 가장 좋은 방법은 BETWEEB 조건절에 있는 컬럼을 후행 컬럼으로 둔 인덱스를 생성하는 것이 좋지만, 모든 상황이 항상 인덱스를 생성할 수 있는 상황이 아니다.
+
+#### 2.2. BETWEEN 절을 IN절로 변경
+
+- 인덱스를 생성할 수 없는 상황이라면 BETWEEN절을 IN절로 변경하는 것을 고려해보는 것이 좋은 해결 방법이 될 수 있다.
+- 일단 IN절이 어떤 방식으로 인덱스를 스캔하는지 그림을 통해서 먼저 확인해보자.
+
+![](./img/between_scan.png)
+- BETWEEN 절에서는 인덱스 수직적 탐색을 한번 진행하게 되지만 IN 절의 경우 수직적 탐색을 여러번 진행하는 것을 확인할 수 있다.
+- IN절의 스캔 방식이 실제로 작동 되는지 쿼리를 통해서 확인해보자.
+```SQL
+select * from employees where birth_date in ('1952-02-01', '1952-02-02', .... '1952-02-28') and first_name = 'Jouni'
+
++--+-----------+---------+----------+-----+----------------------+----------------------+-------+----+----+--------+---------------------+
+|id|select_type|table    |partitions|type |possible_keys         |key                   |key_len|ref |rows|filtered|Extra                |
++--+-----------+---------+----------+-----+----------------------+----------------------+-------+----+----+--------+---------------------+
+|1 |SIMPLE     |employees|null      |range|ix_birthdate_firstname|ix_birthdate_firstname|61     |null|28  |100     |Using index condition|
++--+-----------+---------+----------+-----+----------------------+----------------------+-------+----+----+--------+---------------------+
+
+-- IN절을 쿼리로 표현
+select * from employees where birth_date = '1952-02-01' and first_name = 'Jouni'
+select * from employees where birth_date = '1952-02-02' and first_name = 'Jouni'
+select * from employees where birth_date = '1952-02-03' and first_name = 'Jouni'
+...
+select * from employees where birth_date = '1952-02-28' and first_name = 'Jouni'
+```
+- BETWEEN절을 사용했을 때는 1706건에 대한 인덱스를 스캔하였지만 IN절로 변경하는 순간 28건의 인덱스를 스캔할 수 있게 되어 BETWEEN 절보다 효율적인 스캔을 한다는 것을 확인할 수 있다.
 
 
 #### 2.2. IN
