@@ -1,6 +1,3 @@
-
-
-
 ### 인덱스 효율성
 
 - 인덱스를 스캔하는 단계에 처리하는 조건절은 엑세스 조건과 필터 조건으로 나뉜다.
@@ -121,6 +118,8 @@ select * from employees where birth_date = '1952-02-01' and first_name = 'Jouni'
 select * from employees where birth_date = '1952-02-02' and first_name = 'Jouni'
 select * from employees where birth_date = '1952-02-03' and first_name = 'Jouni'
 ...
+...
+...
 select * from employees where birth_date = '1952-02-28' and first_name = 'Jouni'
 ```
 - BETWEEN절을 사용했을 때는 1706건에 대한 인덱스를 스캔하였지만 IN절로 변경하는 순간 28건의 인덱스를 스캔할 수 있게 되어 BETWEEN 절보다 효율적인 스캔을 한다는 것을 확인할 수 있다.
@@ -128,16 +127,33 @@ select * from employees where birth_date = '1952-02-28' and first_name = 'Jouni'
 
 #### 2.2. IN
 - 앞서 설명한바와 같이 IN 절의 경우는 IN-iterator 방식으로 인덱스 스캔을 진행한다.
-- 하지만 IN절 또한 너무 많은 조건을 입력하게 될경우 스캔의 비효율이 발생할 수 있다.
-- 기본적으로 IN 절은 인덱스 수직적 탐색과 수평적 탐색을 계속 반복하여 해당 결과들을 UNION ALL하여 정렬을 수행한다고 하였다.
-- IN절의 조건절들이 많지 않은 경우에는 왠만해서는 BETWEEN 절을 활용하는 것 보다는 IN 절의 성능이 더 좋은 성능을 발휘한다.
+  - IN절이 IN-iterator 방식으로 진행된다고 해서 `=`조건과 동일하게 보면 안된다. 실제로 UNION ALL과 정렬도 수행을 진행한다.
+- 하지만 IN절 조건 수가 많아질 수록 반복 탐색하는 횟수가 많아지기 때문에 비효율이 발생할 수 있다.
+- 그렇다면 IN절 내의 조건으로는 몇개가 적정할지 한번 생각해봐야한다.
+
+1. eq_range_index_dive_limit
+- `eq_range_index_dive_limit` 시스템 변수는 동등 조건을 비교할 경우 옵티마이저가 실행계획을 선택할 때, 기준 값내에서는 index dive방식의 실행계획을 세우고 기준 값을 초과할 경우 index statistics방식의 실행계획을 세우도록하는 변수이다.
+  - index dive 방식은 실행계획을 세울 인덱스를 직접 조회하여 실행계획을 수립한다.  
+    - 인덱스를 조회함으로써 비교적 정확한 최적화를 할 수 있으나, 빈번한 인덱스 조회로 인한 성능 저하가 발생할 수 있다.
+  - index statistic 방식은 인덱스 통계 정보를 바탕으로 실행계획을 수립한다. 
+    - 인덱스 통계 정보를 바탕으로 실행 계획을 수립하기 때문에 빠른 성능을 보장할 수 있지만, 잘못된 톧계정보를 가지고 실행계획을 수립할경우 오히려 성능저하가 발생할 수 있다.
+
+2. range_optimizer_max_mem_size 
+- IN절의 조건이 많아
+- 즉 IN절 내에 1000건의 조건들을 넣게되면 1000번의 수직적 탐색과 수평적 탐색을 지속적으로 반복하는 것이다.
+  - IN젏
 - 하지만 만약에 IN절의 조건이 1000개를 넘어가기 시작하면 오히려 비 효율적인 스캔 방식이 될 수 있다.
 - 앞에서도 설명했지만 IN절은 IN-iterator 방식으로 진행되며 조건으로 걸린 것 만큼 인덱스 수직적 탐색과 수평적 탐색을 반복할 것이고, 뿐만 아니라 UNNION ALL과 정렬 작업까지 진행해야할기 때문이다.
 - 이렇게 될 경우 데이터 베이스 메모리 이슈가 발생할 수 있다. JPA에서 batch_size를 통해서 lazy loading시 in절을 통해서 데이터를 들고 오기 위하여 데이터를 들고오게 되는데 있때, batch_size가 크면 클수록 문제가 발생할 수 있다.
 
+- MySQL은 동등조건에에 대한 실행계획을 세울 때, 최적화를 위하여 직접 index에 접근하여 row수를 예측하도록 하고 있으며 이를 index dive
+
+기본적으로 아래와 같은 기준으로 기준값을 초과할 경우, index dive 방식이 아니라 인덱스 통계 정보를 바탕으로 실행계획을 세울 수 있도록 하는 index statistics 를 사용합니다.
 
 
-
+> https://jojoldu.tistory.com/565
+> https://pjh3749.tistory.com/288
+> http://small-dbtalk.blogspot.com/2016/02/
 
 
 #### 2.3. LIKE
@@ -146,16 +162,18 @@ select * from employees where birth_date = '1952-02-28' and first_name = 'Jouni'
 - 일단 인덱스의 특징 중에 하나는 인덱스 컬럼의 값들이 정렬되어 있다는 것이다.
 - 문자열의 경우 a,b,c .... 순으로 정렬되어 있을 텐데 만약에 LIKE문을 통해서 해당 컬럼을 조회한다고 가정을 해보자.
 ```SQL
+-- title은 인덱스를 가지고 있다.
 select * from comment where title like 'title%'
 select * from comment where title like '%title'
 select * from comment where title like '%title%'
 ```
 - comment 테이블의 title컬럼에서 title에 관련된 문자열을 검색하는 쿼리이다.
-- 첫번째 컬럼의 경우에는 인덱스를 활용할 수 있지만 두번째와 세번째의 경우에는 인덱스를 활용할 수 없다.
-- 첫번째 조건의 경우 title 순으로 정렬되어 있는 인덱스 컬럼의 값만 스캔을 하면 되지만, 두번째와 세번째 컬럼의 경우에는 모든 인덱스를 스캔할 수 밖에 없다.
-  - 때문에 LIKE 절을 잘못활용하는 경우 인덱스 풀스캔 또는 테이블 풀스캔이 일어날 수 있다.
+- 첫번째 쿼리의 경우에는 인덱스를 활용할 수 있지만 두번째와 세번째의 쿼리는 인덱스를 활용할 수 없다.
+- 첫번째 조건의 경우 title 순으로 정렬되어 있는 인덱스 컬럼의 값만 스캔을 하면 된다.
+- 하지만 두번째와 세번째 컬럼의 경우에는 문자열 중간이나 끝에 title 값이 존재하기 때문에 모든 인덱스를 스캔하는 방법으로 밖에 스캔을 할 수 밖에 없다. 
+- 때문에 LIKE 절을 잘못 활용하는 경우 인덱스 풀스캔 또는 테이블 풀스캔이 발생할 수 있다.
 - 테이블 내에 데이터가 많이 없거나, 사용자가 많이 없는 경우에는 LIKE 절을 두번째와 세번째 조건으로도 충분히 해결할 수 있지만, 사용자가 많거나 데이터 양이 많을 경우에는 단순히 LIKE절 만으로 해결할 수 없는 경우가 많다.
-- 때문에 검색을 하기위하여 데이터베이스 하나만을 이용하여 해결하려 들지 말고, 전문검색을 지원하는 데이터베이스(elastic search) 또는 서드파티 툴을 활용하는 것이 좋다.
+  - 때문에 애플리케이션 내부에서 검색을 처리하거나, 전문 검색을 지원할 수 있는 다른 도구(elastic search)들을 활용하는 것이 좋은 선택이 될 수 있다.
 
  
 
