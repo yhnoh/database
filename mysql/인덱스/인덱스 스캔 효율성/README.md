@@ -179,8 +179,11 @@ select * from comment where title like '%title%'
 
 ### 4. 페이징 쿼리 사용시 발생하는 비효율
 
+- 애플리케이션에서 데이터베이스에 저장되어 있는 모든 데이터를 한번에 가져오는 것은 굉장히 큰 부담이 될 수 있다.
+- 이를 해결하기위해서 주로 페이징 처리 작업을 한다. 하지만 이러한 페이징 처리에도 여러가지 방법들이 있으며 잘못된 방법을 선택하여 인덱스 스캔의 비효율이 발생할 수 있다.
+- 페이징 처리에는 어떠한 방법들이 있는지 각각의 장점과 단점에 대해서 알아야지만 인덱스 스캔의 비효율을 줄일 수 있다.
 
-#### 4.1. LIMIT-OFFSET기반 페이징 처리
+#### 4.1. 오프셋 기반 페이징 처리 (Offset-based Pagination)
 - 일반적으로 페이징 방식으로 가장 많이 활용하는 방식은 OFFSET과 LIMIT를 활용한다
 - 하지만 해당 방법은 페이지가 뒤로 갈수록 버려야하는 row수가 많아지는 문제점이 있다.
   - 버려야하는 row수가 많아진다는 의미는 읽어야하는 row수도 많아지는다는 의미이다.
@@ -212,25 +215,22 @@ explain select * from employees order by emp_no limit 10 offset 90;
 - 하지만 모든 기능을 이런식으로 만들 수는 없다. 예를 들어서 배치 애플리케이션이 있는데 배치 애플리케이션의 경우 일반적으로 처음부터 끝까지 읽어들여야하는 경우가 많다.
 - 처음부터 끝까지 모든 데이터를 읽어들여야 하는 경우에는 어떤식으로 해당 문제를 해결할 수 있을까?
 
-#### 4.3. 커서 기반 페이징 처리커버링 인덱스 활용
+#### 4.3. 커서 기반 페이징 처리 (Cursor-based Pagination)
 
-- 커서 기반 페이징 처리는 어떠한 조건 다음에 row를 가져오는 페이징 처리 기법이다.
-- 즉, offset을 활용하지 않고 특정 조건 다음에 row를 가져와 
-  우리가 원하는 데이터가 '어떤 데이터의 다음'에 있다는 데에 집중합니
-
-> https://planetscale.com/learn/courses/mysql-for-developers/examples/cursor-pagination
-> https://taegyunwoo.github.io/tech/Tech_DBPagination#no-offset-%EB%B0%A9%EC%8B%9D%EC%9C%BC%EB%A1%9C-%EC%84%B1%EB%8A%A5-%EA%B0%9C%EC%84%A0
-
-
-- 하지만 실제 결과물은 10개이므로 
-- BETWEEN 절과 IN 절은 범위 검색을 위하여 많이들 활용하고 있지만 인덱스 스캔방식에는 차이가 존재한다.
-- 먼저 BETWEEN의 스캔방식을 확인해보자.
-- BETWEEN의 경우 인덱스 수직적 탐색이후 수평적 탐색을 진행하며, 추가적인 조건으로 인해서 인덱스가 필터링 될 수 있다.
-  - 인덱스가 필터링될 경우, 해당 인덱스를 사용하기 위해서
-- 간단하게 해결 가능하기 때문에 BETWEEN
-- 
+- offset 기반 페이징 처리에서 가장 큰 문제점은 페이지가 뒤로 갈 수 록 읽어들여야하는 row수가 많아진다는 것이다. 이로 인해서 성능 저하가 발생한다.
+- 때문에 어디서 부터 읽기 시작해서 어디까지 읽을지만 알 수 있다면 필요한 row만 읽어들일 수 있으며, 이러한 페이징 처리를 커서 기반 페이징 처리라 한다.
+```SQL
+-- 오프셋 기반 페이징 처리
+select * from [테이블] where order by id limit [페이지 사이즈] offset [페이지 * 페이지 사이즈]
+-- 커서 기반 페이징 처리
+select * from [테이블] where [기준 컬럼] > [기준 조건] order by [기준 컬럼] limit [페이지 사이즈]
+```
+- 위 쿼리를 통해서 확인할 수 있듯이 커서 기반 페이징 처리는 `offset`을 활용하지 않기 때문에 해당 기능을 사용하는 사용자는 어디서 부터 읽을지를 알려줘야하는 특징이 있다.
+  - 사용자가 어떤 특정한 페이지를 누르는 것이 아닌, 스크롤을 통해서 다음 페이지를 넘어가는 UI를 종종 볼 수 있는데 이러한 UI는 주로 커서 기반 페이징 처리를 한다.
 
 
+> [DB 페이지네이션을 최적화하는 여러 방법들](https://planetscale.com/learn/courses/mysql-for-developers/examples/cursor-pagination) <br/>
+> [Cursor pagination](https://taegyunwoo.github.io/tech/Tech_DBPagination#no-offset-%EB%B0%A9%EC%8B%9D%EC%9C%BC%EB%A1%9C-%EC%84%B1%EB%8A%A5-%EA%B0%9C%EC%84%A0)
 
 
 > Real MySql 8.0 개발자와 DBA를 위한 MySQL 실전 가이드, 백은비,이성욱, P247-253 <br/> 
