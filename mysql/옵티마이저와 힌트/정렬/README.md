@@ -70,9 +70,38 @@ explain select * from employees e left join salaries s on e.emp_no = s.emp_no wh
 
 ### 3. 임시테이블을 이용한 정렬
 
-- 하나의 테이블로부터 SELECT해서 정렬하는 경우라면 임시 테이블이 필요하지 않을 수 있다.
-- 하지만 테이블을 조인해서 그 결과 값들을 정렬해야 한다면 임시테이블이 필요할 수 있다.
-  - 드라이빙 테이블의 인덱스를 이용한다면 임시테이블을 사용하지 않지만 그 이외의 경우에는 임시테이블을 사용한다.
-- Extra 컬럼에 Using temporary; Using filesort라는 값이 표시가 된다.
-- 드리븐 테이블을 이용하여 정렬 기준 컬럼이되면 정렬을 수행하기 전에 드리븐 테이블을 읽을 수 밖에 없다ㅏ.
+- 하나의 테이블로부터 나온 결과 값들을 정렬하는 경우라면 임시 테이블이 필요하지 않을 수 있지만, 테이블을 조인해서 나온 결과 값들을 정렬하는 경우라면 임시 테이블이 필요할 수 있다.
+  - 임시테이블을 이용한 정렬을 수행하는 경우 Extra컬럼에서 `Using temporary; Using filesort` 값이 나오는 것을 확인할 수 있다.
+
+#### 3.1. 언제 임시테이블을 이용한 정렬을 수행할까?
+- 조인 활용시 임시 테이블을 이용한 정렬을 수행하지 않는 경우는 드라이빙 테이블의 클러스터링 인덱스를 통해서 정렬하는 경우를 제외하고는 임시 테이블을 이용한 정렬을 수행한다.
+```sql
+-- 드라이빙 테이블의 클러스터링 인덱스를 이용한 정렬 수행
+explain select * from employees e left join salaries s on e.emp_no = s.emp_no where e.emp_no between 100000 and 100100 order by e.emp_no;
+
++--+-----------+-----+----------+-----+------------------------+-------+-------+------------------+----+--------+-----------+
+|id|select_type|table|partitions|type |possible_keys           |key    |key_len|ref               |rows|filtered|Extra      |
++--+-----------+-----+----------+-----+------------------------+-------+-------+------------------+----+--------+-----------+
+|1 |SIMPLE     |e    |null      |range|PRIMARY,ix_emp_no_gender|PRIMARY|4      |null              |101 |100     |Using where|
+|1 |SIMPLE     |s    |null      |ref  |PRIMARY                 |PRIMARY|4      |employees.e.emp_no|9   |100     |null       |
++--+-----------+-----+----------+-----+------------------------+-------+-------+------------------+----+--------+-----------+
+
+-- 드리븐 테이블의 클러스터링 인덱스를 이용한 정렬 수행 
+explain select * from employees e left join salaries s on e.emp_no = s.emp_no where e.emp_no between 100000 and 100100 order by s.emp_no, s.from_date;
+
++--+-----------+-----+----------+-----+------------------------+-------+-------+------------------+----+--------+--------------------------------------------+
+|id|select_type|table|partitions|type |possible_keys           |key    |key_len|ref               |rows|filtered|Extra                                       |
++--+-----------+-----+----------+-----+------------------------+-------+-------+------------------+----+--------+--------------------------------------------+
+|1 |SIMPLE     |e    |null      |range|PRIMARY,ix_emp_no_gender|PRIMARY|4      |null              |101 |100     |Using where; Using temporary; Using filesort|
+|1 |SIMPLE     |s    |null      |ref  |PRIMARY                 |PRIMARY|4      |employees.e.emp_no|9   |100     |null                                        |
++--+-----------+-----+----------+-----+------------------------+-------+-------+------------------+----+--------+--------------------------------------------+
+```
+- 임시 테이블을 활용하는 이유는 
+
+
+
+### 스트리밍 방식
+
 - 
+
+### 버퍼링 방식
