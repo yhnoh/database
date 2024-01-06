@@ -159,5 +159,5 @@ explain select to_date, sum(salary) from salaries group by to_date;
 - 만약 GROUP BY 와 ORDER BY가 같이 사용되는 경우 Filesot를 이용한 정렬을 수행하게 되며 Extra 컬럼에서 Using filesort가 표시되는 것을 확인할 수 있다.
 
 
-> https://dev.mysql.com/doc/refman/8.0/en/group-by-optimization.html
+> https://dev.mysql.com/doc/refman/8.0/en/group-by-optimization.html <br/>
 > Real MySql 8.0 개발자와 DBA를 위한 MySQL 실전 가이드, 백은비,이성욱, P305-309
