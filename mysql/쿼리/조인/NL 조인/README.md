@@ -132,5 +132,7 @@ where e.hire_date between '1985-01-01' and '1985-01-31';
 
 > https://dev.mysql.com/doc/refman/8.2/en/nested-loop-joins.html <br/>
 > https://dev.mysql.com/doc/refman/8.2/en/nested-join-optimization.html <br/>
+> https://jaesong.tistory.com/17147295
+> https://dev.mysql.com/doc/refman/8.2/en/bnl-bka-optimization.html
 > 친절한 SQL 튜닝, 조시형, P255-273 <br/>
 
