@@ -25,7 +25,7 @@ for (e in employees) {
 
 ### 2. 인덱스를 이용한 NL Join
 
-- 기본적으로 NL 조인은 인덱스를 이용했을 때 사용된다. 여기서 이용하는 인덱스 이용 여부는 바로 조인 컬럼에 대한 인덱스를 사용했을 때 사용된다.
+- 기본적으로 NL 조인은 인덱스를 이용했을 때 사용된다. 여기서 말하는 인덱스 이용 여부는 바로 조인 컬럼에 대한 인덱스를 사용했을 때 사용된다.
 - 때문에 조인 컬럼에 인덱스를 걸었다고 하더라도, NL Join이 처리되는 과정을 모른다면 잘못된 테이블에 인덱스를 생성하거나 사용하여 느린 쿼리가 발생할 가능성이 높다. NL Join이 어떻게 인덱스를 이용하여 처리되는지를 이해하고 있어야 조인 쿼리 튜닝을 할 수 있다.
 
 #### 2.1. 인덱스를 이용한 NL Join이 처리되는 과정
@@ -46,12 +46,12 @@ where e.hire_date between '1985-01-01' and '1985-01-31';
 ![](./img/index_nl_join.png)
 
 1. 먼저 `ix_hiredate` 인덱스에서 `e.hire_date between '1985-01-01' and '1985-01-31'` 조건을 가진 가장 첫번째 레코드를 찾는다.
-2. 이후 `ix_hiredate` 인덱스에서 읽은 ROWID를 통해서 `employees` 테이블의 레코드를 찾는다.
-3. `employees` 테이블에서 읽은 `emp_no`를 통해서 `salaries`의 `ix_empno` 인덱스를 탐색한다.
-4. `ix_empno` 인덱스의 첫번째 레코드를 찾은 이후 ROWID를 통해서 `salaries` 테이블의 레코드를 찾는다.
-5. `ix_empno`에서 다음 블록을 스캔한 이후 `employees` 테이블에서 읽은 `emp_no`와 일치하는 지 확인한다.
-6. 일치함으로 `ix_empno` 인덱스에서 ROWID를 통해 `salaries` 테이블의 레코드를 찾는다.
-7. `ix_empno`에서 다음 블록을 스캔한 이후 `employees` 테이블에서 읽은 `emp_no와` 일치하는 지 확인한다. 
+2. 이후 `ix_hiredate` 인덱스에서 읽은 ROWID를 통해서 `test_employees` 테이블의 레코드를 찾는다.
+3. `test_employees` 테이블에서 읽은 `emp_no`를 통해서 `test_salaries`의 `ix_empno` 인덱스를 탐색한다.
+4. `ix_empno` 인덱스의 첫번째 레코드를 찾은 이후 ROWID를 통해서 `test_salaries` 테이블의 레코드를 찾는다.
+5. `ix_empno`에서 다음 블록을 스캔한 이후 `test_employees` 테이블에서 읽은 `emp_no`와 일치하는 지 확인한다.
+6. 일치함으로 `ix_empno` 인덱스에서 ROWID를 통해 `test_salaries` 테이블의 레코드를 찾는다.
+7. `ix_empno`에서 다음 블록을 스캔한 이후 `test_employees` 테이블에서 읽은 `emp_no와` 일치하는 지 확인한다. 
 8. 일치하지 않기 때문에 인덱스 스캔을 멈춘다.
 9. 쿼리에 대한 결과 집합이 나올 때 까지 1 ~ 8번 과정을 반복한다.
 
