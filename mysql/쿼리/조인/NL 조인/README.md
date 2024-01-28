@@ -43,7 +43,7 @@ where e.hire_date between '1985-01-01' and '1985-01-31';
 - test_salaries 테이블은 ix_hiredate 인덱스를 가지고 있고, test_salaries 테이블은 ix_empno 인덱스를 가지고 있다.
 - 아래는 NL Join이 어떻게 인덱스를 이용하여 처리하는지에 대한 일련의 과정을 설명한다.
 
-![](./img/index_nl_join.png)
+![](./img/nl_join.png)
 
 1. 먼저 `ix_hiredate` 인덱스에서 `e.hire_date between '1985-01-01' and '1985-01-31'` 조건을 가진 가장 첫번째 레코드를 찾는다.
 2. 이후 `ix_hiredate` 인덱스에서 읽은 ROWID를 통해서 `test_employees` 테이블의 레코드를 찾는다.
