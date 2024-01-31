@@ -53,6 +53,10 @@ select t2.c1 from t1 left join t2 on t1.c1 = t2.c1;
 
 #### 2.2. MySQL 중첩된 서브쿼리(Nested Subquery) 최적화 
 - MySQL에서는 중첩된 서브쿼리의 최적화를 지원한다. 하지만 모든 경우에 대해서 최적화를 진행하지는 않기 때문에 어느 경우에 서브쿼리의 최적화를 진행하는지에 대해서 알아두면 좋다. 만약 중첩된 서브쿼리를 지원한다고 알고만 있다면 옵티마이저가 최적화하지 못하는 쿼리를 작성하게 될 수 있다.
+- 중첩된 서브쿼리의 경우 메인 쿼리와 연관되어 수행될 수 있다. 때문에 서브쿼리는 메인쿼리에 종속적이므로 메인쿼리가 먼저 실행되지 않으면 서
+1. IN, EXISTS 서브 쿼리에 대한 최적화
 
+2. NOT IN, NOT EXISTS 서브쿼리에 대한 최적화
 
-> https://dev.mysql.com/doc/refman/8.0/en/subquery-optimization.html
+> https://dev.mysql.com/doc/refman/8.0/en/subquery-optimization.html <br/>
+> https://hoing.io/archives/73895
