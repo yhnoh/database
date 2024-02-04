@@ -125,10 +125,11 @@ select t2.c1 from t1 left join t2 on t1.c1 = t2.c1;
 - UNION, HAVING, 집계함수, LIMIT, STRAIGHT_JOIN이 사용된 경우 최적화를 지원하지 않는다.
 
 
+#### 2.2. MySQL 인라인 뷰(Inline View) 최적화
 
-1. IN, EXISTS 서브 쿼리에 대한 최적화
 
-2. NOT IN, NOT EXISTS 서브쿼리에 대한 최적화
+
+
 
 > https://dev.mysql.com/doc/refman/8.0/en/subquery-optimization.html <br/>
 > https://hoing.io/archives/73895
