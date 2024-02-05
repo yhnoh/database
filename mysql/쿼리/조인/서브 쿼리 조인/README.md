@@ -127,6 +127,25 @@ select t2.c1 from t1 left join t2 on t1.c1 = t2.c1;
 
 #### 2.2. MySQL 인라인 뷰(Inline View) 최적화
 
+- MySQL 이후부터 인라인 뷰의 최적화를 지원한다.
+  - 인라인 뷰로 사용된 쿼리 블록을 병합하여 처리
+  - 인라인 뷰로 사용된 쿼리 결과를 임시테이블을 사용하여 처리
+
+- 간단하게 인라인 뷰로 사용된 쿼리 블록을 병합하여 처리하는 과정을 한번 알아보자.
+```sql
+-- 사용자가 사용한 쿼리
+select * from (select * from t1) as derived_t1;
+
+-- 옵티망저가 변환해준 쿼리
+select * from t1;
+
+-- 사용자가 사용한 쿼리
+select * from t1 join (select t2.c1 from t2) AS derived_t2 on t1.c1=derived_t2.c1 where t1.c1 > 0;
+
+-- 옵티망저가 변환해준 쿼리
+select t1.*, t2.c1 from t1 join t2 on t1.c1=t2.c1 where t1.c1 > 0;
+
+```
 
 
 
