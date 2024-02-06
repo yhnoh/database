@@ -22,11 +22,11 @@
 - 서브쿼리는 위치에 따라서 세 가지의 서브쿼리로 분류할 수 있다.
 
 1. 스칼라 서브쿼리 (Scalar Subquery)
-- SELECT문에 있는 서브쿼리 절로 하나의 레코드당 하나의 값을 반환하는 서브쿼리이다.
-1. 중첩된 서브쿼리 (Nested Subquery)
-- WHERE 절에 사용되는 서브쿼리를 말한다.
-1. 인라인 뷰 (Inline View)
-- FROM 절에 사용하는 서브쿼리를 말한다.
+   - SELECT문에 있는 서브쿼리 절로 하나의 레코드당 하나의 값을 반환하는 서브쿼리이다.
+2. 중첩된 서브쿼리 (Nested Subquery)
+   - WHERE 절에 사용되는 서브쿼리를 말한다.
+3. 인라인 뷰 (Inline View)
+   - FROM 절에 사용하는 서브쿼리를 말한다.
 
 
 ### 2. MySQL에서의 서브쿼리 최적화
@@ -36,30 +36,30 @@
 - MySQL에서는 스칼라 서브쿼리의 최적화를 지원하지 않는다. 때문에 스칼라 서브쿼리 대신에 Outer Join을 활용하여 문제를 해결하는 것이 좋은 방법이다.
 - 안그러면 하나의 레코드당 서브쿼리를 한번씩 실행하게 되며 이는 느린 쿼리의 원인이 될 수 있다.
 - 아래의 쿼리를 통해서 스칼라 서브쿼리가 실제로 최적화를 진행하지 않는지 조인으로 변경 시 어떻게 문제가 해결 되는지 확인해보자.
-  
-```sql
--- 1. 스칼라 서브쿼리 사용
-select (select t2.c1 from t2 where t2.c1 = t1.c1) from t1;
+    ```sql
+    -- 1. 스칼라 서브쿼리 사용, 쿼리 실행을 통한 응답 시간: 2s 517m
+    select (select t2.c1 from t2 where t2.c1 = t1.c1) from t1;
 
--- explain analyze
--> Filter: (0 <> t1.c1)  (cost=1003 rows=8982) (actual time=1.77..12.1 rows=10000 loops=1)
-    -> Table scan on t1  (cost=1003 rows=9980) (actual time=1.76..9.55 rows=10000 loops=1)
--> Select #2 (subquery in projection; dependent)
-    -- t1의 레코드 하나당 t2의 테이블을 조회한 것을 확인할 수 있다. 
-    -> Filter: (t2.c1 = t1.c1)  (cost=223 rows=1984) (actual time=1.18..4.69 rows=1 loops=10000)
-        -> Table scan on t2  (cost=223 rows=19836) (actual time=0.00214..3.97 rows=20000 loops=10000)
+    -- explain analyze
+    -> Filter: (0 <> t1.c1)  (cost=1003 rows=8982) (actual time=1.77..12.1 rows=10000 loops=1)
+        -> Table scan on t1  (cost=1003 rows=9980) (actual time=1.76..9.55 rows=10000 loops=1)
+    -> Select #2 (subquery in projection; dependent)
+        -- t1의 레코드 하나당 t2의 테이블을 조회한 것을 확인할 수 있다. 
+        -> Filter: (t2.c1 = t1.c1)  (cost=223 rows=1984) (actual time=1.18..4.69 rows=1 loops=10000)
+            -> Table scan on t2  (cost=223 rows=19836) (actual time=0.00214..3.97 rows=20000 loops=10000)
 
--- 2. 스칼라 서브쿼리를 조인문으로 변경
-select t2.c1 from t1 left join t2 on t1.c1 = t2.c1;
+    -- 2. 스칼라 서브쿼리를 조인문으로 변경, 쿼리 실행을 통한 응답 시간: 74ms
+    select t2.c1 from t1 left join t2 on t1.c1 = t2.c1;
 
--- explain analyze
--- 해시 조인 사용
--> Left hash join (t2.c1 = t1.c1)  (cost=19.8e+6 rows=198e+6) (actual time=8.78..15.5 rows=10000 loops=1)
-    -> Table scan on t1  (cost=1003 rows=9980) (actual time=0.012..2.46 rows=10000 loops=1)
-    -> Hash
-        -> Table scan on t2  (cost=0.202 rows=19836) (actual time=0.0364..4.57 rows=20000 loops=1)
-```
-- 스칼라 서브쿼리를 사용했을 때 레코드 값을 하나 가져올 때마다 서브쿼리를 실행하게 되지만, 스칼라 서브쿼리를 조인문으로 변경했을 경우 해시 조인을 활용하는 것을 확인할 수 있다. 단순히 서브쿼리를 조인으로 변경했을 뿐인데 성능상 어마어마한 이점을 안겨준다.
+    -- explain analyze
+    -> Left hash join (t2.c1 = t1.c1)  (cost=19.8e+6 rows=198e+6) (actual time=8.78..15.5 rows=10000 loops=1)
+        -> Table scan on t1  (cost=1003 rows=9980) (actual time=0.012..2.46 rows=10000 loops=1)
+        -> Hash
+            -> Table scan on t2  (cost=0.202 rows=19836) (actual time=0.0364..4.57 rows=20000 loops=1)
+    ```
+    - 스칼라 서브쿼리에서 조인으로 변경하면서 응답 시간이 `2s 517ms -> 74ms`인 것을 확인할 수 있다.
+    - explain을 분석해보면 스칼라 서브쿼리를 사용했을 때 레코드 값을 하나 가져올 때마다 서브쿼리를 실행하게 되지만, 스칼라 서브쿼리를 조인문으로 변경했을 경우 해시 조인을을 이용한 것을 확인할 수 있다.
+    - 때문에 스칼라 서브쿼리를 이용하여 쿼리를 작성하기 보다는 조인을 이용하여 쿼리를 작성하는 것이 성능상 이점을 가져올 수 있다.
 
 <br/><br/>
 
@@ -131,14 +131,26 @@ select t2.c1 from t1 left join t2 on t1.c1 = t2.c1;
 
 #### 2.2.3. 서브쿼리 최적화를 지원하지 않는 경우
 
-- UNION, HAVING, 집계함수, LIMIT, STRAIGHT_JOIN이 사용된 경우 최적화를 지원하지 않는다.
-> https://dev.mysql.com/doc/refman/8.0/en/semijoins.html
+- 몇몇 경웨 따라서 서브 쿼리 최적화를 지원하지 않는다고 MySQL 공식문서에는 나와있기는 한데, 실제로 사용을 해보니 안그런 경우들이 있다.
+  - UNION, HAVING, 집계함수, LIMIT, STRAIGHT_JOIN 등의 경우 최적화를 지원하지 않는다라고 명시되어 있다. 
+    > https://dev.mysql.com/doc/refman/8.0/en/semijoins.html
+  - 하지만 실제 쿼리를 수행하면 해당 경우인데 빠른 결과가 나오는 경우가 있는데, 이는 옵티마이저가 서브쿼리를 옵티마이적 임시테이블로 만들어 해당 임시테이블을 참조하여 최적화를 수행하기 때문이다.
+    > https://dev.mysql.com/doc/refman/8.0/en/subquery-materialization.html
+    ```sql
+    -- 임시테이블 활용하지 못함
+    select t2.c1 from t2 where t2.c1 in (select t1.c1 from t1 union all select t2.c1 from t2);
+
+    -- 임시테이블 활용
+    select t2.c1 from t2 where t2.c1 in (select t1.c1 from t1 group by t1.c1);
+    select t2.c1 from t2 where t2.c1 in (select avg(1) from t1 group by t1.c1);
+    select t2.c1 from t2 where t2.c1 in (select t1.c1 from t1 group by t1.c1 having t1.c1 > 100);
+    ```
 
 <br/><br/>
 
 #### 2.3. MySQL 인라인 뷰(Inline View) 최적화
 
-- MySQL 이후부터 인라인 뷰의 최적화를 지원한다.
+- MySQL은 인라인 뷰의 최적화를 지원한다.
   - 인라인 뷰로 사용된 쿼리 블록을 병합하여 처리
   - 인라인 뷰로 사용된 쿼리 결과를 임시테이블을 사용하여 처리
 
