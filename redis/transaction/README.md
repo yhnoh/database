@@ -27,7 +27,7 @@ QUEUED
 > https://redis.io/docs/latest/commands/multi/ <br/>
 > https://redis.io/docs/latest/commands/exec/ <br/>
 
-### 트랜잭션을 사용하는 도중 에러가 발생하는 경우
+### 트랜잭션을 사용하는 도중 에러가 발생할 때 Redis가 가지는 특징
 - 트랜잭션을 수행하는 도중 발생할 수 있는 에러의 가지수는 exec 명령어를 수행하기 전/후이다.
 - exec 명령어를 수행하기 전에 명령어가 잘못되었거나 서버의 메모리를 초과해서 사용하는 경우 에러가 발생할 수 있다.
 - 키에 대해서 잘못된 값을 작성하게 될 경우 exec 명령어를 호출된 이후에 에러가 발생할 수 있다.
@@ -64,8 +64,38 @@ QUEUED
 
 
 
-### 락
-WATCHed 키는 변경 사항을 감지하기 위해 모니터링됩니다. EXEC 명령 이전에 하나 이상의 감시된 키가 수정되면 전체 트랜잭션이 중단되고 EXEC는 Null 응답을 반환하여 트랜잭션이 실패했음을 알립니다.
+### CAS(check-and-set)을 사용한 동시 업데이트 방지를 위한 낙관적 락
+- WATCH 명령어를 사용하면 키의 값이 변경되는 것을 감지할 수 있다.
+- WATCH 명령어를 수행한 이후 EXEC 명령어 이전에 키의 값이 변경되었음을 감지하였을 때, 수행중인 트랜잭션이 중단되며 EXEC는 Null 값을 반환하여 트랜잭션이 실패했음을 알리게 된다.
+- EXEC, DISCARD 명령어를 통해서 WATCH 명령어를 해제할 수 도 있지만, UNWATCH 명령어를 통해서 WATCH를 통해 감시되는 키에 대하여 해제할 수 도 있다.
 
-> [[redis] 트랜잭션(Transaction) - 이론편](https://sabarada.tistory.com/177)
+```sh
+## connection 1
+127.0.0.1:6379> watch test
+OK
+127.0.0.1:6379> multi
+OK
+127.0.0.1:6379(TX)> set test test1
+QUEUED
+
+## connection 2
+127.0.0.1:6379> set test test2
+OK
+
+## connection 1
+127.0.0.1:6379(TX)> exec
+(nil)
+127.0.0.1:6379> get test
+"test2"
+```
+- 위에서 확인할 수 있듯이 connection1에서 WATCH 명령어를 통해서 키의 값이 변경되는 것을 감지할 수 있도록 한 이후, EXEC가 수행되기 이전에 connection2에서 값을 변경하는 것을 확인할 수 있다.
+- 이후 connection1에서 값을 변경하게 될경우 null을 응답받았다는 것을 확인할 수 있다. 이는 곳 트랜잭션의 실패를 의미한다.
+- 만약 connection1이 실패한 이후에 해당 트랜잭션이 정상적으로 수행되기를 원한다면 성공할 때 까지 작업을 반복하는 것이 좋다.
+
+
+> [redis > unwatch](https://redis.io/docs/latest/commands/unwatch/)
+
+
+> [](https://sabarada.tistory.com/177) <br/>
+> [](https://velog.io/@cmsskkk/redis-transaction-spring-and-lua-pipeline) <br/>
 > [redis > transaction](https://redis.io/docs/latest/develop/interact/transactions/)
