@@ -1,0 +1,31 @@
+services:
+  redis-cluster:
+    image: redis:7.2.4-alpine
+    volumes:
+      - ./redis/redis_6379.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+    ports:
+      - 6379:6379
+      - 6380:6380
+      - 6381:6381
+  redis-node-1:
+    network_mode: "service:redis-cluster"
+    image: redis:7.2.4-alpine
+    volumes:
+      - ./redis/redis_6380.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+  redis-node-2:
+    network_mode: "service:redis-cluster"
+    image: redis:7.2.4-alpine
+    volumes:
+      - ./redis/redis_6381.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+  redis-cluster-entry:
+    network_mode: "service:redis-cluster"
+    image: redis:7.2.4-alpine
+    container_name: redis-cluster-entry
+    command: redis-cli --cluster create 127.0.0.1:6379 127.0.0.1:6380 127.0.0.1:6381 --cluster-yes
+    depends_on:
+      - redis-cluster
+      - redis-node-1
+      - redis-node-2
