@@ -1,0 +1,61 @@
+
+## https://hub.docker.com/_/mongo
+
+name: mongodb-cluster
+services:
+  mongodb1:
+    image: mongo:latest
+    container_name: mongodb1
+    networks:
+      mongodb-cluster:
+          ipv4_address: 192.168.0.2
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: 1234
+    ports:
+      - 27018:27017
+    volumes:
+      - ./data/rs1:/data/db
+      - ./replica.key:/data/replica.key
+    command: mongod --replSet rs --dbpath /data/db --bind_ip localhost,192.168.0.2 --port 27017 --keyFile /data/replica.key
+  mongodb2:
+    depends_on: 
+      - mongodb1
+    image: mongo:latest
+    container_name: mongodb2
+    networks:
+      mongodb-cluster:
+          ipv4_address: 192.168.0.3
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: 1234
+    ports:
+      - 27019:27017
+    volumes:
+      - ./data/rs2:/data/db
+      - ./replica.key:/data/replica.key
+    command: mongod --replSet rs --dbpath /data/db --bind_ip localhost,192.168.0.3 --port 27017 --keyFile /data/replica.key
+  mongodb3:
+    depends_on: 
+      - mongodb1
+    image: mongo:latest
+    container_name: mongodb3
+    networks:
+      mongodb-cluster:
+          ipv4_address: 192.168.0.4
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: 1234
+    ports:
+      - 27020:27017
+    volumes:
+      - ./data/rs3:/data/db
+      - ./replica.key:/data/replica.key
+    command: mongod --replSet rs --dbpath /data/db --bind_ip localhost,192.168.0.4 --port 27017 --keyFile /data/replica.key
+
+networks:
+  mongodb-cluster:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.0.0/24
