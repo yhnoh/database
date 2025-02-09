@@ -1,0 +1,1 @@
+sh.addShard("shardRS/shard_mongodb1:27017,shard_mongodb2:27017,shard_mongodb3:27017");

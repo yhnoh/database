@@ -1,0 +1,16 @@
+services:
+  mongos_mongodb:
+    image: mongo:latest
+    container_name: mongos_mongodb
+    networks:
+      - mongodb_sharding_network
+    ports:
+      - 28017:27017
+    command: mongos --configdb configRS/config_mongodb1:27017,config_mongodb2:27017,config_mongodb3:27017 --bind_ip localhost,mongos --port 27017
+    volumes:
+      - ./script:/script
+      # - ./data:/data/db
+
+networks:
+  mongodb_sharding_network:
+    external: true

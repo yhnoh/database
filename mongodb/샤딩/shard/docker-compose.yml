@@ -1,0 +1,40 @@
+services:
+  shard_mongodb1:
+    depends_on: 
+      - shard_mongodb2
+      - shard_mongodb3
+    image: mongo:latest
+    container_name: shard_mongodb1
+    networks:
+      - mongodb_sharding_network
+    ports:
+      - 29017:27017
+    command: mongod --shardsvr --replSet shardRS --dbpath /data/db --bind_ip localhost,shard_mongodb1 --port 27017
+    volumes:
+      - ./script:/script
+      # - ./data/rs1:/data/db
+  shard_mongodb2:
+    image: mongo:latest
+    container_name: shard_mongodb2
+    networks:
+      - mongodb_sharding_network
+    ports:
+      - 29018:27017
+    command: mongod --shardsvr --replSet shardRS --dbpath /data/db --bind_ip localhost,shard_mongodb2 --port 27017
+    # volumes:
+    #   - ./data/rs2:/data/db
+  shard_mongodb3:
+    image: mongo:latest
+    container_name: shard_mongodb3
+    networks:
+      - mongodb_sharding_network
+    ports:
+      - 29019:27017
+    command: mongod --shardsvr --replSet shardRS --dbpath /data/db --bind_ip localhost,shard_mongodb3 --port 27017
+    # volumes:
+    #   - ./data/rs3:/data/db
+
+
+networks:
+  mongodb_sharding_network:
+    external: true
