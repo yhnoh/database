@@ -24,9 +24,13 @@
       - 과반수 이상의 복제본에 데이터 반영
       - 저널 파일에 반영
       - 위 두 행위가 1초 이내에 반영
+- 트랜잭션과 쓰기결과확인을 통하여 다중 도큐먼트 원자성 보장하기
+  - 몽고 DB에서는 개별 도큐먼트 갱신에 대한 작업은 원자적이다.
+  - 하지만 다중 도큐먼트에 대한 원자성이 필요한 경우가 있다.
+  - 이러한 기능을 지원하기 위해서 트랜잭션수준의 WriteConcern을 제공하여 다중 도큐먼트 갱신에 대한 원자성을 보장할 수 있다.
 
-> [MongoDB > WriteConcern](https://www.mongodb.com/ko-kr/docs/manual/reference/write-concern/)
-
+> [MongoDB > WriteConcern](https://www.mongodb.com/ko-kr/docs/manual/reference/write-concern/) <br/>
+> [MongoDB > Transaction](https://www.mongodb.com/ko-kr/docs/manual/core/transactions/)
 
 
 - 복제셋에 쓰기 작업 진행시 모든 복제된 컬렉션의 데이터에 대해 몽고DB는 저널항목을 생성
