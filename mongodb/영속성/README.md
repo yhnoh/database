@@ -7,6 +7,25 @@
 
 > [MongoDB > 저널링](https://www.mongodb.com/ko-kr/docs/manual/core/journaling/)
 
+### 쓰기결과확인을 통한 영속성
+- WriteConcern은 쓰기 결과를 확인한 이후 변경사항을 적용할지 말지를 결정할 수 있다.
+- WriteConcern을 결정하는 요소
+  - w: 쓰기 작업이 성공했다고 판단하기 위한 복제본 수
+  - j: true/false를 통해서 저널 파일의 기록 여부를 통하여 변경사항 적용 결정
+  - wtiemout: 지정한 시간내에 쓰기 작업이 완료되지 않으면 오류를 반환
+- WriteConcern 예제를 통하여 파악
+    ```mongodb
+    db.orders.insertOne(
+        {name: "상품1", quantity: 3},
+        {writeConcern: {w: "majority", wtimeout: 1000, j: true}}
+    )
+    ```
+    - 해당 쓰기 작업이 데이터베이스에 정상적으로 반영되기 위해서는 아래 세가지 조건이 만족되어야한다.
+      - 과반수 이상의 복제본에 데이터 반영
+      - 저널 파일에 반영
+      - 위 두 행위가 1초 이내에 반영
+
+> [MongoDB > WriteConcern](https://www.mongodb.com/ko-kr/docs/manual/reference/write-concern/)
 
 
 
