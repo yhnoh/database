@@ -8,6 +8,7 @@
 > [MongoDB > 저널링](https://www.mongodb.com/ko-kr/docs/manual/core/journaling/)
 
 ### 쓰기결과확인을 통한 영속성
+- 몽고 DB는 분산 데이터베이스 시스템으로써 여러 인스턴스를 사용하여 복제셋과 샤딩을 지원한다. 이로 인하여 ***쓰기 작업을 할때 모든 인스턴스가 동일한 데이터를 동일한 시점에 적용될 것이라는 보장이 없기 때문에, 데이터의 일관성의 레벨에 따라서 쓰기 행위를 결정***할 수있다.
 - WriteConcern은 쓰기 결과를 확인한 이후 변경사항을 적용할지 말지를 결정할 수 있다.
 - WriteConcern을 결정하는 요소
   - w: 쓰기 작업이 성공했다고 판단하기 위한 복제본 수
@@ -24,12 +25,26 @@
       - 과반수 이상의 복제본에 데이터 반영
       - 저널 파일에 반영
       - 위 두 행위가 1초 이내에 반영
+
+> [MongoDB > WriteConcern](https://www.mongodb.com/ko-kr/docs/manual/reference/write-concern/) <br/>
+
+### 읽기결과확인을 통한 영속성
+- 몽고 DB는 분산 데이터베이스 시스템으로써 여러 인스턴스를 사용하여 복제셋과 샤딩을 지원한다. 이로 인하여 ***읽기 작업을 할때 모든 인스턴스가 동일한 시점에 동일한 데이터를 적용하고 있다는 보장이 없기 때문에, 데이터의 일관성의 레벨에 따라서 읽는 행위를 결정***할 수있다.
+- ReadConcern은 트랜잭션의 격리 수준과 유사한 개념으로, 다른 사용자의 쓰기 작업에 따라서 어떻게 데이터를 읽을지를 결정할 수 있다.
+- ReadConcern를 결정하는 요소
+  - level: 트랜잭션의 격리 수준과 유사한 옵션으로 분산 환경에서 커밋되지 않은 데이터를 읽거나 커밋된 데이터만 읽도록 설정 가능
+
+> [MongoDB > ReadConcern](https://www.mongodb.com/ko-kr/docs/manual/reference/read-concern/) <br/>
+
+### 
 - 트랜잭션과 쓰기결과확인을 통하여 다중 도큐먼트 원자성 보장하기
   - 몽고 DB에서는 개별 도큐먼트 갱신에 대한 작업은 원자적이다.
+  - 하지만 다중 컬렉션 및 도큐먼트에 대한 읽기 및 쓰기의 원자성이 필요한 경우가 존재한다.
+    - 
   - 하지만 다중 도큐먼트에 대한 원자성이 필요한 경우가 있다.
   - 이러한 기능을 지원하기 위해서 트랜잭션수준의 WriteConcern을 제공하여 다중 도큐먼트 갱신에 대한 원자성을 보장할 수 있다.
 
-> [MongoDB > WriteConcern](https://www.mongodb.com/ko-kr/docs/manual/reference/write-concern/) <br/>
+
 > [MongoDB > Transaction](https://www.mongodb.com/ko-kr/docs/manual/core/transactions/)
 
 
