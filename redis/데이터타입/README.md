@@ -170,9 +170,23 @@ LSET
 
 ### Bitmap
 - 비트맵은 String 자료구조에서 Bit 연산을 수행할 수 있도록 확장한 형태이다.
-- String 자료구조를 사용하기 때문에 최대 512MB 값을 저장할 수 있는 제한사항이 존재한다.
-- 비트맵의 가장 큰 장점은 특정 사용 방시에 따라서 획기적으로 저장공간을 줄일 수 있는 장점이 존재한다.
+- String 자료구조를 사용하기 때문에 최대 512MB 값을 저장할 수 있는 제한사항(2의 32승, 약 40억 비트)이 존재한다.
+- 비트맵의 가장 큰 장점은 특정 사용 방식에 따라서 저장공간을 줄일 수 있는 장점이 존재한다.
+  - 하나의 쿠폰에 대하여 회원별 사용여부와 같은 플래그를 이용한 서비스 개발을 할때 유용하게 사용할 수 있다.
 
+#### 데이터 쓰기 명령어
+- SETBIT
+  - `SETBIT key offset value`
+  - 해당하는 위치에 0과 1을 저장할 수 있다.
+#### 데이터 읽기 명령어
+- GETBIT
+  - `GETBIT key offset`
+  - 해당하는 위치의 값을 읽을 수 있다.
+- BITCOUNT
+  - BITCOUNT key [start end [BYTE | BIT]]
+  - 1로 저장된 비트의 개수를 카운팅할 수 있다.
+
+> [](https://redis.io/docs/latest/develop/data-types/#bitmaps)
 ### Stream
 
 ### Geospatial
