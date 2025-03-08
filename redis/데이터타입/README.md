@@ -189,9 +189,39 @@ LSET
 > [](https://redis.io/docs/latest/develop/data-types/#bitmaps)
 
 ### Stream
-- 레디스를 메시지 브로커로서 사용할 수 있게 하는 자료구조이다.
-  - 메시지 처리를 못하는 상황이 오더라도 어딘가에 해당 메시지를 저장한 이후 후처리를 할 수 있도록 하는 것이 메시지 브로커의 역할이다.
-- 실시간 이벤트 혹인 로그성 데이터를 저장할 수 있다.
+- Stream은 데이터를 저장하고 해당 데이터를 읽어들일 수 있는 자료구조로써 Redis를 메시징 서비스로 활용할 수 있도록하는 자료구조이다.
+  - 로그를 쌓는것과 같이 데이터의 업데이트하지 않고, 계속해서 추가하는 방식으로 저장(append-only)된다.
+  - Stream은 데이터를 저장한 순서대로 정렬되어 있으며 해당 순서대로 데이터를 읽어들일 수 있다.
+- Stream에서는 데이터를 추가하게되면 `<millisecondsTime>-<sequenceNumber>`라는 유니크한 ID를 가지게 되면 해당 ID는 직접 정의해서 데이터를 저장할 수 있다.
+  - 해당 ID를 통해서 데이터를 읽거나 삭제가 가능하다.
+
+#### 데이터 쓰기 명령어
+- XADD
+  - `XADD key [NOMKSTREAM] [<MAXLEN | MINID> [= | ~] threshold [LIMIT count]] <* | id> field value [field value ...]`
+  - 
+#### 데이터 읽기 명령어
+- XREAD
+  - `XREAD [COUNT count] [BLOCK milliseconds] STREAMS key [key ...] id [id ...]`
+  - 하나이상의 스트림 데이터를 읽고 반환할 수 있는 명령어다.
+  - BLOCK을 통한 대기
+    - BLOCK 옵션은 메시지를 읽고 반환할 수 있을 때까지 대기할 수 있는 옵션이다.
+    - `BLOCK 0`이라고 선언한다면 Stream에 데이터가 존재하지 않으면 읽을 수 있는 데이터가 존재할 때까지 대기하게 된다.
+    - `BLOCK 1000`이라고 선언한다면 Stream에 데이터가 존재하지 않으면 1초동안 대기한 이후 null을 반환한다.
+  - id를 통한 특정 데이터 반환
+    - id를 이용하여 특정 데이터를 반환하거나 입력한 id 값보다 큰 id를 가진 데이터를 반환할 수 있다.
+      - 0 또는 0-0을 입력하게 되면 stream에 존재하는 모든 데이터를 읽을 수 있다.
+    - $이라는 특수 id를 입력하면 XREAD를 실행한 이후부터의 데이터를 읽을 수 있다.
+  - COUNT를 통한 특정 데이터 반환
+- XRANGE
+  - `XRANGE key start end [COUNT count]`
+  - id의 범위를 지정하여 데이터를 읽고 반환할 수 있는 명령어이다.
+  - XREAD와의 가장 큰 차이는 XREAD에는 BLOCK 옵션이 있기 때문에 데이터가 추가될때까지 대기할 수 있지만, XRANGE는 명령어를 입력한 시점에 즉시 반환된다는 차이가 있다.
+- XLEN
+  - 스트림의 길이를 반환한다.
+  - 
+
+> https://redis.io/docs/latest/develop/data-types/#streams
+
 
 #### PUB/SUB
 - 레디스는 PUB/SUB 기능을 재공하며, 특정 레디스 노드에서 채널을 통해서 메시지를 발행하면 해당 채널을 구독하고 있는 레디스 노드가 메시지를 읽을 수 있다.
