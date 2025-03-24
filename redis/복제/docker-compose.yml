@@ -1,0 +1,25 @@
+
+
+name: replication
+services:
+  redis-master:
+    image: redis:7.2.4-alpine
+    container_name: redis-master
+    ports:
+      - 6379:6379
+  redis-slave-1:
+    image: redis:7.2.4-alpine
+    container_name: redis-slave-1
+    ports:
+      - 6380:6379
+    command: redis-server --replicaof redis-master 6379
+    depends_on:
+      - redis-master
+  redis-slave-2:
+    image: redis:7.2.4-alpine
+    container_name: redis-slave-2
+    ports:
+      - 6381:6379
+    command: redis-server --replicaof redis-master 6379
+    depends_on:
+      - redis-master
