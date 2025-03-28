@@ -1,0 +1,52 @@
+
+
+name: sentinel
+services:
+  redis-master:
+    image: redis:7.2.4-alpine
+    container_name: redis-master
+    ports:
+      - 6379:6379
+  redis-slave-1:
+    image: redis:7.2.4-alpine
+    container_name: redis-slave-1
+    ports:
+      - 6380:6379
+    command: redis-server --replicaof redis-master 6379
+    depends_on:
+      - redis-master
+  redis-slave-2:
+    image: redis:7.2.4-alpine
+    container_name: redis-slave-2
+    ports:
+      - 6381:6379
+    command: redis-server --replicaof redis-master 6379
+    depends_on:
+      - redis-master
+  redis-sentinel-1:
+    build: .
+    ports:
+      - "26379:26379"
+    depends_on:
+      - redis-master
+      - redis-slave-1
+      - redis-slave-2
+    container_name: "redis-sentinel-1"
+  sentinel-2:
+    build: .
+    ports:
+      - "26380:26379"
+    depends_on:
+      - redis-master
+      - redis-slave-1
+      - redis-slave-2
+    container_name: "redis-sentinel-2"
+  sentinel-3:
+    build: .
+    ports:
+      - "26381:26379"
+    depends_on:
+      - redis-master
+      - redis-slave-1
+      - redis-slave-2
+    container_name: "redis-sentinel-3"
