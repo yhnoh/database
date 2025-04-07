@@ -1,3 +1,18 @@
+### 레디스 클러스터 동작방식
+- 레디스 클러스터의 모든 노드는 어디에 키가 저장되어있는지 알고 있다.
+- 클라이언트가 아무 노드에 데이터를 읽거나 쓰려고 할때 키가 할당된 마스터 노드로 리다이렉션 한다.
+- 클라이언트에서는 클러스터 내에서 특정 키가 어떤 마스터에 저장되어 있는지에 대한 정보를 캐싱하여 키를 찾아오는 시간을 단축시킬 수 있다.
+- 클러스터에 속한 각 노드는 서로를 모니터링하고 마스터 노드에 장애가 발생하면 복제본 노드를 자동 페일오버 시킨다.
+- 해시 슬롯에 저장 
+- client는 아무 Redis Master엑
+
+- Reids Cluster 데이터 쓰기 및 읽기
+  - 해시슬롯
+  - 복수개의 키를 읽기 위한 해시태그
+- Reids Cluster 자동 재구성
+  - 자동 페일오버
+  - 자동 복제본 마이그레이션
+
 ### Redis Cluster Architecture
 단일 장애점(Single point of failure)이 없는 토폴로지: 메쉬(Mesh)   ---»   Redis Cluster
 - Redis는 서로가 서로의 노드의 상태를 확인하는 작업을 수행하며 만약 하나의 노드가 장애가 일어나더라도 Slave노드를 Master로 승격시킨다던지, 
@@ -35,6 +50,7 @@
 ### Shading
 - 
 
+> https://meetup.nhncloud.com/posts/226
 > https://cla9.tistory.com/102
 > https://www.youtube.com/watch?v=mPB2CZiAkKM
 > https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/#key-distribution-model
