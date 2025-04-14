@@ -44,51 +44,54 @@
 
 
 ### List
-
-- List는 순서를 가지는 문자열의 목록이다.
-
-```sh
-127.0.0.1:6379> LPUSH collections A
-(integer) 1
-127.0.0.1:6379> RPUSH collections B
-(integer) 2
-127.0.0.1:6379> LRANGE collections 0 -1
-1) "A"
-2) "B"
-127.0.0.1:6379> LPUSH collections A
-(integer) 3
-127.0.0.1:6379> LRANGE collections 0 -1
-1) "A"
-2) "A"
-3) "B"
-127.0.0.1:6379> LRANGE collections 0 1
-1) "A"
-2) "A"
-
-127.0.0.1:6379> LPOP collections
-"A"
-127.0.0.1:6379> RPOP collections
-"B"
-127.0.0.1:6379> LANGE collections 0 -1
-(error) ERR unknown command 'LANGE', with args beginning with: 'collections' '0' '-1' 
-127.0.0.1:6379> LRANGE collections 0 -1
-1) "A"
-```
-
-LPUSH 와 LTRIM을 이용하여 고정된 크기의 대기열을 만들 수 있다.
-LINDEX
-- 
-LTRIM
-- 인덱스 범위만큼의 데이터를 남겨두고 나머지는 버린다.
-LSET
-- 원하는 인덱스에 데이터를 덮어쓴다. 만약 리스트에 해당하는 인덱스가 없으면 `ERR index out of range`에러가 발생하게 된다.
-- 
-> [Redis > List](https://redis.io/docs/latest/develop/data-types/lists/)
-
+- List는 순서를 가지는 문자열의 목록이며 연결 리스트의 자료구조 특성을 가진다.
+  - 연결 리스트의 자료구조 특성을 가지기 때문에 특정 인덱스를 통해서 데이터를 조회할때도 첫번째부터 순차적으로 접근하여 해당 인덱스의 데이터를 조회한다.
+- 최대 42억 여개의 데이터를 저장할 수 있으며, 특정 커맨드를 이용하여 Stack과 Queue처럼 활용할 수 있다. 
+- List 데이터 타입을 가진 키의 사이즈가 0이 되면 레디스는 해당 키를 자동으로 삭제한다.
+  - 이는 다른 컬렉션 타입인 Set, Hash, Sorted Set에도 해당된다.
 
 #### 데이터 저장 명령어
+- LPUSH
+  - `LPUSH key element [element ...]`
+  - 지정한 데이터 목록을 왼쪽에 추가한다.
+- RPUSH
+  - `RPUSH key element [element ...]`
+  - 지정한 데이터 목록을 오른쪽에 추가한다.
+- LPOP
+  - `LPOP key [count]`
+  - 왼쪽에서 데이터를 반환함과 동시에 List에서 데이터를 삭제한다.
+- RPOP
+  - `RPOP key [count]`
+  - 오른쪽에서 데이터를 반환함과 동시에 List에서 데이터를 삭제한다.
+- LINSERT
+  - `LINSERT key <BEFORE | AFTER> pivot element`
+  - 특정 인덱스를 기준으로 앞이나 뒤에 데이터를 추가할 수 있다.
+- LTRIM
+  - `LTRIM key start stop`
+  - 시작과 끝의 인덱스를 입력받아 지정되지 않은 범위의 데이터를 삭제한다.
+
+#### Blocking 명령어
+- BLPOP, BRPOP
+  - `BLPOP key [key ...] timeout`
+  - `BRPOP key [key ...] timeout`
+  - 데이터를 반환함과 동시에 List에서 데이터를 삭제한다.
+  - 리스트에 데이터가 존재한다면 데이터를 즉시 반환하지만 리스트에 데이터가 존재하지 않는다면 지정한 timeout 동안 대기를 한다.
+  - 대기하는 동안 리스트에 데이터가 추가된다면 해당 데이터를 반환하지만, 만약 지정한 대기시간 동안 데이터가 추가되지 않는다면 nil을 반환한다.
+  - 요청한 클라리언트는 대기를 하게되만 다른 레디스 클라이언트들은 레디스에 접근 및 명령어 수행이 가능하다.
 
 #### 데이터 읽기 명령어
+- LRANGE
+  - `LRANGE key start stop`
+  - 시작과 끝의 인덱스를 입력받아 해당하는 데이터를 반환한다.
+- LINDEX
+  - `LINDEX key index`
+  - 입력받은 인덱스의 데이터를 해당하는 반환한다.
+- LLEN
+  - `LLEN key`
+  - 리스트의 길이를 반환한다.
+
+> [Redis > List](https://redis.io/docs/latest/develop/data-types/#lists)
+
 
 
 ### Hash
