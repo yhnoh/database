@@ -1,73 +1,51 @@
 
 
 ### String
-
-- 최대 512MB 데이터를 저장할 수 있다.,
 - Key와 Value 형태의 문자열을 저장할 수 있는 데이터 구조이다.
-  - 문자열이 binary-safe하게 처리되기 때문에 JPEG 이미지와 같은 바이트값, HTTP 응답값 등 다양한 데이터를 저장하는 것도 가능하다.
+- 최대 512MB 데이터를 저장할 수 있으며 문자열이 binery-safe하게 처리되기 때문에 이미지와 오디오와 같은 다양한 데이터를 저장하는 것이 가능하다.
+
+> binary-safe
+> 길이 명시: Binary-safe한 시스템이나 함수는 일반적으로 문자열의 길이를 명시적으로 저장하거나 전달합니다. 따라서 널 바이트를 만나더라도 문자열의 실제 길이를 알 수 있어 그 이후의 데이터도 정확하게 처리할 수 있습니다.
+> 바이트 단위 처리: 문자열을 단순히 문자의 나열이 아닌 바이트의 연속으로 취급합니다. 따라서 어떤 바이트 값이라도 특별한 의미를 부여하지 않고 데이터의 일부로 간주합니다.
+> 인코딩 독립성: 특정 문자 인코딩에 의존하지 않고 바이트 스트림으로 처리하므로 다양한 유형의 데이터를 안전하게 다룰 수 있습니다.
 
 #### 데이터 저장 명령어
-
+- SET
+  - `SET key value [NX | XX] [GET] [EX seconds | PX milliseconds |
+  EXAT unix-time-seconds | PXAT unix-time-milliseconds | KEEPTTL]`
+  - 문자열 데이터를 저장할 수 있으며 키가 이미 존재하는경우 덮어씌운다.
+  - 옵션
+    - NX: 키가 존재하지 않는 경우에 데이터를 저장
+    - XX: 키가 존재하는 경우에 데이터를 저장
+- INCR
+  - `INCR key`
+  - 저장된 데이터를 1씩 증가시킬 수 있으며, 증가된 데이터를 반환한다.
+- INCRBY
+  - `INCRBY key increment`
+  - 입력한 값만큼 데이터를 증가시킬 수 있으며, 증가된 데이터를 반환한다.
+- DECR
+  - `DECR key`
+  - 저장된 데이터를 1씩 감소시킬 수 있으며, 감소된 데이터를 반환한다.
+- DECRBY
+  - `DECRBY key decrement`
+  - 입력한 값만큼 데이터를 감소시킬 수 있으며, 감소된 데이터를 반환한다.
+- MSET
+  - `MSET key value [key value ...]`
+  - 여러 키와 해당 하는 값을 동시에 저장한다. 
 #### 데이터 읽기 명령어
-
-```sh
-127.0.0.1:6379> SET hello world
-OK
-127.0.0.1:6379> GET hello
-"world"
-127.0.0.1:6379> SET hello wolrd2
-OK
-127.0.0.1:6379> GET hello
-"wolrd2"
-## NX: 키가 존재하지 않을 때만 값을 저장
-127.0.0.1:6379> SET hello world3 NX
-(nil)
-127.0.0.1:6379> GET hello
-"wolrd2"
-## XX: 키가 존재하는 경우에만 값을 저장
-127.0.0.1:6379> SET hello2 world XX
-(nil)
-127.0.0.1:6379> GET hello2
-(nil)
-```
-
-
-
-- 단일 커맨드에서는 원자적이기 때문에 동시에 10번의 증가 값이 들어와도 결과는 10을 가지게 된다.
-  - 
-- 읽고 증가하고 저장하는 일련의 과정을 모두 원자적으로 발생
-```sh
-127.0.0.1:6379> INCR counter
-(integer) 1
-127.0.0.1:6379> INCR counter
-(integer) 2
-127.0.0.1:6379> INCRBY counter 50
-(integer) 52
-```
-
-
-- MGET과 MSET을 이용하여 한번에 여러 키의 데이터를 저장 및 읽을 수 있다.
-```sh
-127.0.0.1:6379> MSET a 10 b 20 c 30
-OK
-127.0.0.1:6379> MGET a b
-1) "10"
-2) "20"
-127.0.0.1:6379> MGET a b cc
-1) "10"
-2) "20"
-3) (nil)
-127.0.0.1:6379> MGET a b c
-1) "10"
-2) "20"
-3) "30"
-127.0.0.1:6379> 
-```
+- GET
+  - `GET key`
+  - 지정한 키의 값을 가져온다.
+- MGET
+  - `MGET key [key ...]`
+  - 지정한 모든 키의 값을 반환한다.
 
 > [Redis > String](https://redis.io/docs/latest/develop/data-types/#strings)
 
 
 ### List
+
+- List는 순서를 가지는 문자열의 목록이다.
 
 ```sh
 127.0.0.1:6379> LPUSH collections A
