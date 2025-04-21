@@ -40,7 +40,7 @@
   - `MGET key [key ...]`
   - 지정한 모든 키의 값을 반환한다.
 
-> [Redis > String](https://redis.io/docs/latest/develop/data-types/#strings)
+> [Redis Docs > String](https://redis.io/docs/latest/develop/data-types/#strings)
 
 
 ### List
@@ -90,23 +90,52 @@
   - `LLEN key`
   - 리스트의 길이를 반환한다.
 
-> [Redis > List](https://redis.io/docs/latest/develop/data-types/#lists)
-
+> [Redis Docs > List](https://redis.io/docs/latest/develop/data-types/#lists)
 
 
 ### Hash
-- Hash는 필드-값을 가진 집합구조이다.
-
-> https://redis.io/docs/latest/develop/data-types/#hashes
-
+- Hash는 field-value 구조를 가진 집합구조이다.
+  - 필드와 값 모두 문자열 데이터로 저장되며, 관계형 데이터베이스나 객체와 같은 표현하기 적합하다.
+- 최대 42억 여개의 field와 value를 저장할 수 있으며, 실제로는 레디스 노드의 메모리만큼의 제한을 따른다.
 #### 데이터 저장 명령어
+- HSET
+  - `HSET key field value [field value ...]`
+  - field-value로 구성된 데이터를 하나이상 저장할 수 있다.
+  - 동일 field가 입력되면 데이터는 override 된다.
+- HINCRBY
+  - `HINCRBY key field increment`
+  - 지정한 정수나 field의 값을 증가시킨다. 
+- HGETDEL
+  - `HGETDEL key FIELDS numfields field [field ...]`
+  - Redis 8.0.0 버전 이후부터는 지정된 필드의 값을 가져온이후 삭제할 수 있다.
 
+
+#### Field 만료시간 명령어
+- HEXPIRE, HEXPIREAT, HEXPIRETIME, HPERSIST
+  - Redis 7.4.0 버전 이후부터는 각 field에 TTL을 적용할 수 있으며, 만료 시간이 지나면 지정한 필드가 삭제된다.
+  - TTL을 지정한 field들의 만료일을 제거하여 영구적으로 데이터를 보관하는 `HPERSIST`라는 명령어도 존재한다.
 #### 데이터 읽기 명령어
+- HGET
+  - `HGET key field`
+  - 입력된 field의 value를 반환한다.
+- MHGET
+  - `HMGET key field [field ...]`
+  - 입력된 field들의 value를 반환하며, 입력한 field 순으로 value를 반환한다. 만약 field가 존재하지 않는다면 nil을 반환한다. 
+- HGETALL
+  - `HGETALL key`
+  - 키에 해당하는 모든 field와 value를 반환한다.
+- HKEYS
+  - `HKEYS key`
+  - - 키에 해당하는 모든 field를 반환한다.
+
+> [Redis Docs > Hash](https://redis.io/docs/latest/develop/data-types/#hashes)
+
 
 
 ### Set
-- Set 자료구조는 중복해서 데이터를 저장할 수 없으며 정렬되지 않은 데이터 모음이다.
-- 두개 이상의 Set을 이용하여 교집합, 합집합, 차집합등의 관계를 표현할 수 있다.
+- Set 데이터 타입은 중복해서 데이터를 저장할 수 없으며 정렬되지 않은 데이터 모음이다.
+- 명령어를 이용하여 두개 이상의 Set의 교집합, 합집합, 차집합등의 관계를 표현할 수 있다.
+  - 
 
 #### 데이터 저장 명령어
 - SADD
@@ -125,7 +154,7 @@
 - SDIFF
   - 두개 이상의 SET 자료구조의 차집합을 읽을 수 있는 명령어
 
-> [](https://redis.io/docs/latest/develop/data-types/sets/)
+> [Redis Docs > Set](https://redis.io/docs/latest/develop/data-types/#sets)
 
 
 ### Sorted Set
@@ -168,6 +197,17 @@
   - 1로 저장된 비트의 개수를 카운팅할 수 있다.
 
 > [](https://redis.io/docs/latest/develop/data-types/#bitmaps)
+
+
+
+
+
+
+
+
+
+
+
 
 ### Stream
 - Stream은 데이터를 저장하고 해당 데이터를 읽어들일 수 있는 자료구조로써 Redis를 메시징 서비스로 활용할 수 있도록하는 자료구조이다.
