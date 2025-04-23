@@ -138,20 +138,40 @@
 
 #### 데이터 저장 명령어
 - SADD
-  - 하나이상의 데이터를 저장할 수 있는 명령어
+  - `SADD key member [member ...]`
+  - 하나 이상의 데이터를 저장할 수 있는 명령어다.
 - SREM
-  - 데이터를 삭제할 수 있는 명령어
+  - `SREM key member [member ...]`
+  - 하나 이상의 데이터를 삭제할 수 있는 명령어다.
+
+### 집합 관계를 이용할 수 있는 명령어
+
+- 두개이상의 SET을 이용하여 집합 관계를 표현할 수 있는 명령어를 제공한다.
+- SUNION
+  - `SUNION key [key ...]`
+  - 두개 이상의 SET 자료구조의 합집합을 구하여 데이터를 반환한다.
+- SINTER
+  - `SINTER key [key ...]`
+  - 두개 이상의 SET 자료구조의 교집합을 구하여 데이터를 반환한다.
+- SDIFF
+  - `SDIFF key [key ...]`
+  - 두개 이상의 SET 자료구조의 차집합을 구하여 데이터를 반환한다.
+
 #### 데이터 읽기 명령어
+- SISMEMBER
+  - `SISMEMBER key member`
+  - SET 데이터타입 내부에 해당하는 데이터가 존재하면 1을 없으면 0을 반환한다.
 - SMEMBERS
+  - `SMEMBERS key`
   - 전체 데이터를 읽을 수 있는 명령어
 - SPOP
-  - SET 자료구조 내부에서 랜덤으로 데이터를 뽑아내어 데이터를 반환함과 동시에 삭제하는 명령어
-- SUNION
-  - 두개 이상의 SET 자료구조의 합집합을 읽을 수 있는 명령어
-- SINTER
-  - 두개 이상의 SET 자료구조의 교집합을 읽을 수 있는 명령어
-- SDIFF
-  - 두개 이상의 SET 자료구조의 차집합을 읽을 수 있는 명령어
+  - `SPOP key [count]`
+  - SET에서 랜덤으로 데이터를 뽑아내어 데이터를 반환함과 동시에 삭제하는 명령어
+- SCARD
+  - `SCARD key`
+  - SET 데이터타입의 사이즈를 반환한다.
+
+
 
 > [Redis Docs > Set](https://redis.io/docs/latest/develop/data-types/#sets)
 
