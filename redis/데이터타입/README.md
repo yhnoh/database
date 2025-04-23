@@ -177,24 +177,36 @@
 
 
 ### Sorted Set
-- Sorted Set 자료구조는 스코어와 값에 따라 정렬되는 데이터 모음이다.
-- 스코어는 중복될수 있지만 값은 중복될 수 없다.
-- 스코어는 실수 및 정수 데이터를 사용할 수 있다.
+- Sorted Set 데이터타입은 스코어와 값에 따라 정렬되는 데이터 모음이다.
+  - Sorted Set은 member(유니크한 문자열)-score 형식의 구조를 가지고 있으며, score는 중복될 수 있지만 member는 중복될 수 없다.
+  - score는 실수 및 정수를 사용할 수 있다.
+  - score가 같은 경우 member 문자열 순으로 정렬된다.
+- Sorted Set은 List와 Set의 속성을 둘다 가지고 있기 때문에 비슷한 명령어를 수행할 수 있다.
+  - Sorted Set도 Set이기 때문에 집합관계를 표현할 수 있는 명령어를 제공한다.
+  - Sorted Set은 정렬되어 있기 때문에 List에서 제공하는 POP이나 Blocking 명령어를 제공한다.
+- 특정한 순위를 매기는 시스템을 이용하거나, 메트릭 데이터를 남겨 특정한 로직을 수행할 수도 있다.
+> - Leaderboards. For example, you can use sorted sets to easily maintain ***ordered lists of the highest scores*** in a massive online game.
+> - Rate limiters. In particular, you can use a sorted set to build a ***sliding-window rate limiter*** to prevent excessive API requests.
 
 #### 데이터 쓰기 명령어
 - ZADD
-  - 
+  - `ZADD key [NX | XX] [GT | LT] [CH] [INCR] score member [score member...]`
+  - member와 score를 하나이상 추가할 수 있는 명령어다.
+  - 특정 옵션을 이용하여 member가 존재하거나 존재하지 않은 경우나, member가 가진 현재 score보다 크냐 작냐에 따라서 값을 저장할지 말지에 대한 여부를 결정할 수 있다.
+
 
 #### 데이터 읽기 명령어
 - ZRANGE
-  - 인덱스 및 스코어를 기반으로 데이터 조회
-    ```sh
-    ZRANGE score 0 3 ## 0 ~ 3 인덱스 데이터 조회
-    ZRANGE score 1 1 ## 첫번째 인덱스 데이터 조회
-
-    ZRANGE score 100 150 BYSCORE ## 스코어 기반 데이터 조회
-    ```
-> [](https://redis.io/docs/latest/develop/data-types/#sorted-sets)
+  - `ZRANGE key start stop [BYSCORE | BYLEX] [REV] [LIMIT offset count] [WITHSCORES]`
+  - 범위를 지정하여 member 및 score를 기준으로 정렬된 데이터를 반환한다.
+  - 기본적으로 오름차순으로 반환하지만 REV 옵션을 이용하여 내림차순으로 데이터를 반환할 수 있다.
+  - 레디스 6.2.0 버전 이후로는 아래의 명령어로 대체할 수 있다.
+    - `ZREVRANGE, ZRANGEBYSCORE, ZREVRANGEBYSCORE, ZRANGEBYLEX and ZREVRANGEBYLEX`
+- ZRANK
+  - `ZRANK key member [WITHSCORE]`
+  - 하나의 member에 대한 순위를 반환한다.
+- 
+> [Redis Docs > SortedSet](https://redis.io/docs/latest/develop/data-types/#sorted-sets)
 
 
 ### Bitmap
