@@ -25,7 +25,7 @@ public class RedisExampleService01 {
     // 스코어 기준으로 상위 10개의 데이터를 가져온다.
     public List<SearchPopularKeyword> getSearchPopularKeywords(SearchPopularKeywordCommand command) {
         BoundZSetOperations<String, String> sortedSet = stringRedisTemplate.boundZSetOps(command.getKey());
-        Set<ZSetOperations.TypedTuple<String>> typedTuples = sortedSet.reverseRangeWithScores(0, -1);
+        Set<ZSetOperations.TypedTuple<String>> typedTuples = sortedSet.reverseRangeWithScores(0, command.getTop() - 1);
 
         List<SearchPopularKeyword> searchPopularKeywords = new ArrayList<>();
         int rank = 1;
