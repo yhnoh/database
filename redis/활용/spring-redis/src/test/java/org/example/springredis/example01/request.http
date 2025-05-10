@@ -1,0 +1,5 @@
+###
+GET http://localhost:8080/example01/search?keyword=world
+
+###
+GET http://localhost:8080/example01/search/popular-keyword
