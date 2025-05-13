@@ -5,10 +5,8 @@ import lombok.Getter;
 
 @Getter
 @Builder
-public class SearchPopularKeyword {
-
+public class SearchKeyword {
+    private String value;
+    private Double score;
     private int rank;
-    private String keyword;
-    private double count;
-    private int diff;
 }
