@@ -31,7 +31,7 @@
   - 일반적인 RDBMS에서는 트랜잭션 내부에서 에러가 발생할 경우 실행한 모든 작업을 롤백시킨다.
   - 하지만 Redis는 트랜잭션을 시작하고 중간에 에러가 발생하는 경우 트랜잭션의 일부 작업이 반영되거나 전부 반영되지 않는 경우가 있다.
 - 격리 수준과 락 
-  - RDBMS는 다양한 격리 수준 및 락을 통해서 동시성 이슈를 해결할 수 있는 다양한 메커니즘을 제공한다.
+  - RDBMS는 트랜잭션 내에서의 데이터 보장을 위한 다양한 격리 수준(Isolation Level) 및 락을 통해서 동시성 이슈를 해결할 수 있는 다양한 메커니즘을 제공한다.
   - Redis는 트랜잭션 시작 시점에 읽은 데이터가 트랜잭션 완료 시점에도 유효한지는 보장할 수 없다. 즉 다른 클라이언트로 인하여 변경된 값을 읽어올 수 있다. 이를 해소하기 위하여 Redis는 낙관적 락을 제공하며 읽은 데이터의 변경 점이 존재한다면 해당 트랜잭션은 실패한다.
 
 
@@ -66,7 +66,7 @@ QUEUED
 QUEUED
 127.0.0.1:6379(TX)> DISCARD
 OK
-127.0.0.1:6379>
+
 ```
 1. `MULTI` 명령어를 사용하면 트랜잭션이 시작된다.
 2. 트랜잭션 내부에서 명령어를 수행할 때마다 대기열(Queue)에 명령어를 적재한다.
@@ -76,89 +76,63 @@ OK
 ### Redis 트랜잭션내에서 에러 발생한다면?
 - Redis는 트랜잭션을 시작하고 중간에 에러가 발생하는 경우 트랜잭션의 일부 작업이 반영되거나 전부 반영되지 않는 경우가 있다고 했다.
 - 어떤 경우에 반영되고 어떤 경우에 반영이되지 않을까?
-- 트랜잭션 내부에서 에러 발생으로 인하여 작업이 반영되지 않는 경우
-  - EXEC 명령어를 수행하기 전에 발생하는 에러의 경우 트랜잭션은 취소된다.
-  - 트랜잭션을 시작한 이후 작성된 명령어가 문법적인 오류(Syntactically Wrong)를 발생 시키거나, 레디스 서버 자체의 문제로 인해서 트랜잭션의 전체 작업이 반영되지 않는다.
-  - 문법적 오류 : 하나의 인자만 받을 수 있는 명령어에 여러 인자를 넘겨주거나 인자를 넘겨주지 않은 경우, 명령어에 오타가 잇을 경우...
-  - 레디스 서버 문제: 메모리 부족 현상... 
-- 트랜잭션 내부에서 에러 발생으로 인하여 일부 작업이 반영되는 경우
-  - 트랜잭션을 시작한 이후 키에 대하여 잘못된 명령어를 수행하는 경우 트랜잭션의 일부 작업이 반영될 수 있다.
-  - - 트랜잭션을 시작한 이후 키에 대하여 잘못된 명령어를 수행하는 경우 트랜잭션의 일부 작업이 반영될 수 있다.
-  - Strings 데이터 타입을 가진 키에 list 데이터 타입과 관련된 명령어를 수행하는 경우
 
-- 때문에 큐에 적재된 내부 명령어 중에 일부 오류가 발생하여도 나머지 명령어들은 정상적으로 수행된다.
-  > It's important to note that even when a command fails, all the other commands in the queue are processed – Redis will not stop the processing of commands.
-- 때문에 큐에 적재된 명령어를 취소하는 것은 가능하지만 롤백을 제공해주지 않는다.
-  > is does not support rollbacks of transactions since supporting rollbacks would have a significant impact on the simplicity and performance of Redis.
-
-
-
-#### 1.2. Redis 트랜잭션 사용해보면서 Redis만이 가지는 특징
-1. 트랜잭션 내부에서 값을 수정하는 도중이라도 다른 커넥션에서 값을 수정하게 되면 대기하지않고 반영이된다.
-2. 트랜잭션 내부에서 발생하는 작업들이 바로 반영이되는 것이 아닌 큐에 적재되는 특징이 있다. 때문에 해당 트랜잭션 내부에서 데이터를 쓰더라도 트랜잭션 밖에서 해당 값을 확인할 수 있다.
-3. 명령어가 큐에 적재되는 것이기 때문에 일반적인 RDBMS의 커밋과 롤백의 개념과는 다르다. 일반적인 RDBMS의 경우에는 트랜잭션 내부에서 값을 변경하여도 다른 트랜잭션에서 해당 값을 읽어올 수 있지만, Redis는 그렇지 않은 특징이 있다.
-
-
-> https://redis.io/docs/latest/commands/multi/ <br/>
-> https://redis.io/docs/latest/commands/exec/ <br/>
-> https://redis.io/docs/latest/commands/discard/
-
-
-#### 2.1. 에러 발생으로 인한 전체 작업을 수행하지 않는 경우
-- 트랜잭션을 시작한 이후 작성된 명령어가 문법적인 오류(syntactically wrong)를 발생 시키거나, 레디스 서버 자체의 문제로 인해서 트랜잭션의 전체 작업이 반영되지 않는다.
-  - 문법적 오류 : 하나의 인자만 받을 수 있는 명령어에 여러 인자를 넘겨주거나 인자를 넘겨주지 않은 경우, 명령어에 오타가 잇을 경우...
-  - 레디스 서버 문제: 메모리 부족 현상... 
-
+#### 트랜잭션 내부에서 에러 발생으로 인하여 작업이 반영되지 않는 경우
+- EXEC 명령어를 수행하기 전에 발생하는 에러의 경우 트랜잭션은 취소된다. 트랜잭션이 취소되기 때문에 EXEC 명령어를 수행하더라도 DISCARD 되면서 대기열에 존재하는 명령어는 취소된다.
+- EXEC 명령어를 수행하기 전에 발생하는 에러는 문법적 오류(Syntactically Wrong)나 레디스 서버 문제로 발생할 수 있다.
+  - 문법적 오류 : 하나의 인자만 받을 수 있는 명령어에 여러 인자를 넘겨주거나 인자를 넘겨주지 않은 경우, 명령어에 오타가 있을 경우...
+  - 레디스 서버 문제: 메모리 부족 현상...
 ```sh
 ## 트랜잭션 시작
-127.0.0.1:6379> multi
+127.0.0.1:6379> MULTI
 OK
 ## 작업 1
-127.0.0.1:6379(TX)> set a b
+127.0.0.1:6379(TX)> SET a b
 QUEUED
 ## 작업 2, 문법 오류 발생
-127.0.0.1:6379(TX)> keys
+127.0.0.1:6379(TX)> KEYS
 (error) ERR wrong number of arguments for 'keys' command
 ## exec 수행
-127.0.0.1:6379(TX)> exec
+127.0.0.1:6379(TX)> EXEC
 (error) EXECABORT Transaction discarded because of previous errors.
 
 ## 문법 오류로 인한 작업 반영 X
-127.0.0.1:6379> get a
+127.0.0.1:6379> GET a
 (nil)
 ```
-
-#### 2.2. 에러가 발생하였지만 일부 작업이 반영된 경우
-- 트랜잭션을 시작한 이후 키에 대하여 잘못된 명령어를 수행하는 경우 트랜잭션의 일부 작업이 반영될 수 있다.
-  - Strings 데이터 타입을 가진 키에 list 데이터 타입과 관련된 명령어를 수행하는 경우
-- 일반적으로는 중간에 명령어가 실패했을 경우 수행한 명령어가 전부 수행되지 않기를 기대하지만, redis는 위와 같은 경우 일부 작업이 반영될 수 있기 때문에 신경을 쓰고 개발하는 것이 좋다.
+#### 트랜잭션 내부에서 에러 발생으로 인하여 일부 작업이 반영되는 경우
+- EXEC 명령어를 수행한 후에 발생하는 에러의 경우 발생한 에러를 제외한 나머지 작업은 반영된다.
+  - 트랜잭션을 시작한 이후 키에 대하여 잘못된 명령어를 수행하는 경우 트랜잭션의 일부 작업이 반영될 수 있다.
 
 ```sh
 ## 트랜잭션 시작
-127.0.0.1:6379> multi
+127.0.0.1:6379> MULTI
 OK
-## 작업 1, Strings 데이터 타입을 가진 키 저장
-127.0.0.1:6379(TX)> set a a
+127.0.0.1:6379(TX)> SET a a
 QUEUED
-## 작업 2, Strings 데이터 타입을 가진 키에 List 데이터 타입과 관련된 명령어를 수행
-127.0.0.1:6379(TX)> lpop a
+## Strings 데이터 타입을 가진 키에 List 데이터 타입과 관련된 명령어를 수행
+127.0.0.1:6379(TX)> LPOP a
 QUEUED
-## 작업 3, Strings 데이터 타입을 가진 키 저장 
-127.0.0.1:6379(TX)> set b b
+127.0.0.1:6379(TX)> SET b b
 QUEUED
-127.0.0.1:6379(TX)> exec
+127.0.0.1:6379(TX)> EXEC
 1) OK
 2) (error) WRONGTYPE Operation against a key holding the wrong kind of value
 3) OK
 
-## 에러가 발생하였지만, set 명령어가 정상적으로 동작한 것을 확인 가능
-127.0.0.1:6379> get a
+## 에러가 발생하였지만 에러를 제외한 나머지 명령어 정상 수행 확인
+127.0.0.1:6379> GET a
 "a"
-127.0.0.1:6379> get b
+127.0.0.1:6379> GET b
 "b"
 ```
+- 큐에 적재된 내부 명령어 중에 일부 오류가 발생하여도 나머지 명령어들은 정상적으로 수행된것을 확인할 수 있다.
+  > It's important to note that even when a command fails, all the other commands in the queue are processed – Redis will not stop the processing of commands.
+- 큐에 적재된 명령어를 취소하는 것은 가능하지만 롤백을 제공해주지 않는다.
+  > is does not support rollbacks of transactions since supporting rollbacks would have a significant impact on the simplicity and performance of Redis.
 
-### 3. CAS(check-and-set)을 사용한 동시 업데이트 방지를 위한 낙관적 락
+
+### Redis에서 제공하는 동시성을 제어하기 위한 락
 - WATCH 명령어를 사용하면 키의 값이 변경되는 것을 감지할 수 있다.
 - WATCH 명령어를 수행한 이후 EXEC 명령어 이전에 키의 값이 변경되었음을 감지하였을 때, 수행중인 트랜잭션이 중단되며 EXEC는 Null 값을 반환하여 트랜잭션이 실패했음을 알리게 된다.
 - EXEC, DISCARD 명령어를 통해서 WATCH 명령어를 해제할 수 도 있지만, UNWATCH 명령어를 통해서 WATCH를 통해 감시되는 키에 대하여 해제할 수 도 있다.
