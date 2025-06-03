@@ -78,8 +78,8 @@ OK
 - 어떤 경우에 반영되고 어떤 경우에 반영이되지 않을까?
 
 #### 트랜잭션 내부에서 에러 발생으로 인하여 작업이 반영되지 않는 경우
-- EXEC 명령어를 수행하기 전에 발생하는 에러의 경우 트랜잭션은 취소된다. 트랜잭션이 취소되기 때문에 EXEC 명령어를 수행하더라도 DISCARD 되면서 대기열에 존재하는 명령어는 취소된다.
-- EXEC 명령어를 수행하기 전에 발생하는 에러는 문법적 오류(Syntactically Wrong)나 레디스 서버 문제로 발생할 수 있다.
+- `EXEC` 명령어를 수행하기 전에 발생하는 에러의 경우 트랜잭션은 취소된다. 트랜잭션이 취소되기 때문에 `EXEC` 명령어를 수행하더라도 `DISCARD` 되면서 대기열에 존재하는 명령어는 취소된다.
+- `EXEC` 명령어를 수행하기 전에 발생하는 에러는 문법적 오류(Syntactically Wrong)나 레디스 서버 문제로 발생할 수 있다.
   - 문법적 오류 : 하나의 인자만 받을 수 있는 명령어에 여러 인자를 넘겨주거나 인자를 넘겨주지 않은 경우, 명령어에 오타가 있을 경우...
   - 레디스 서버 문제: 메모리 부족 현상...
 ```sh
@@ -101,7 +101,7 @@ QUEUED
 (nil)
 ```
 #### 트랜잭션 내부에서 에러 발생으로 인하여 일부 작업이 반영되는 경우
-- EXEC 명령어를 수행한 후에 발생하는 에러의 경우 발생한 에러를 제외한 나머지 작업은 반영된다.
+- `EXEC` 명령어를 수행한 후에 발생하는 에러의 경우 발생한 에러를 제외한 나머지 작업은 반영된다.
   - 트랜잭션을 시작한 이후 키에 대하여 잘못된 명령어를 수행하는 경우 트랜잭션의 일부 작업이 반영될 수 있다.
 
 ```sh
@@ -128,38 +128,37 @@ QUEUED
 ```
 - 큐에 적재된 내부 명령어 중에 일부 오류가 발생하여도 나머지 명령어들은 정상적으로 수행된것을 확인할 수 있다.
   > It's important to note that even when a command fails, all the other commands in the queue are processed – Redis will not stop the processing of commands.
-- 큐에 적재된 명령어를 취소하는 것은 가능하지만 롤백을 제공해주지 않는다.
-  > is does not support rollbacks of transactions since supporting rollbacks would have a significant impact on the simplicity and performance of Redis.
-
 
 ### Redis에서 제공하는 동시성을 제어하기 위한 락
-- WATCH 명령어를 사용하면 키의 값이 변경되는 것을 감지할 수 있다.
-- WATCH 명령어를 수행한 이후 EXEC 명령어 이전에 키의 값이 변경되었음을 감지하였을 때, 수행중인 트랜잭션이 중단되며 EXEC는 Null 값을 반환하여 트랜잭션이 실패했음을 알리게 된다.
-- EXEC, DISCARD 명령어를 통해서 WATCH 명령어를 해제할 수 도 있지만, UNWATCH 명령어를 통해서 WATCH를 통해 감시되는 키에 대하여 해제할 수 도 있다.
-
+- Redis는 낙관적 락을 제공하며 읽은 데이터의 변경 점이 존재한다면 해당 트랜잭션은 실패한다고 하였다.
+- Redis에서는 트랜잭션 시작전에 `WATCH` 명령어를 통해서 지정한 키의 변경점을 감지할 수 있게 되고, 이후 트랜잭션이 종료될될때 지정한 키의 변경점이 존재하면 트랜잭션이 실패하게 된다.
+  - 키의 변겸점이란 단순히 키에 대한 값의 변경뿐만아니라 키삭제나 만료도 포함된다.
+  > WATCH is used to provide a check-and-set (CAS) behavior to Redis transactions.
+- `EXEC, DISCARD` 명령어를 통해서 `WATCH` 명령어를 해제할 수 도 있지만, `UNWATCH` 명령어를 이용하여 감시되는 키에 대하여 해제할 수 도 있다.
 ```sh
 ## connection 1
-127.0.0.1:6379> watch test
+127.0.0.1:6379> WATCH test
 OK
-127.0.0.1:6379> multi
+127.0.0.1:6379> MULTI
 OK
-127.0.0.1:6379(TX)> set test test1
+127.0.0.1:6379(TX)> SET test test1
 QUEUED
 
 ## connection 2
-127.0.0.1:6379> set test test2
+127.0.0.1:6379> SET test test2
 OK
 
 ## connection 1
-127.0.0.1:6379(TX)> exec
+127.0.0.1:6379(TX)> EXEC
 (nil)
-127.0.0.1:6379> get test
+
+127.0.0.1:6379> GET test
 "test2"
 ```
-- 위에서 확인할 수 있듯이 connection1에서 WATCH 명령어를 통해서 키의 값이 변경되는 것을 감지할 수 있도록 한 이후, EXEC가 수행되기 이전에 connection2에서 값을 변경하는 것을 확인할 수 있다.
-- 이후 connection1에서 값을 변경하게 될경우 null을 응답받았다는 것을 확인할 수 있다. 이는 곳 트랜잭션의 실패를 의미한다.
-- 만약 connection1이 실패한 이후에 해당 트랜잭션이 정상적으로 수행되기를 원한다면 성공할 때 까지 작업을 반복하는 것이 좋다.
-
+- connection1에서 `WATCH` 명령어를 통해서 키의 값이 변경되는 것을 감지할 수 있도록 한 이후, 트랜잭션을 시작한다.
+- connection2에서 `WATCH`에 지정된 키의 값을 변경한다.
+- connection1에서 트랜잭션이 종료된 이후 nil을 응답받게되며 해당 트랜잭션이 실패한다.
+- 만약 트랜잭션이 정상적으로 수행되기를 원한다면 재시도 로직을 수행하도록 설계하는 것이 좋다.
 
 > [](https://sabarada.tistory.com/177) <br/>
 > [](https://velog.io/@cmsskkk/redis-transaction-spring-and-lua-pipeline) <br/>
