@@ -160,6 +160,7 @@ OK
 - connection1에서 트랜잭션이 종료된 이후 nil을 응답받게되며 해당 트랜잭션이 실패한다.
 - 만약 트랜잭션이 정상적으로 수행되기를 원한다면 재시도 로직을 수행하도록 설계하는 것이 좋다.
 
-> [](https://sabarada.tistory.com/177) <br/>
-> [](https://velog.io/@cmsskkk/redis-transaction-spring-and-lua-pipeline) <br/>
+
+> [[redis] 트랜잭션(Transaction) - 이론편](https://sabarada.tistory.com/177) <br/>
+> [Redis Transaction, Lua script, Pipeline 개념 과 SpringDataRedis에서의 사용법](https://velog.io/@cmsskkk/redis-transaction-spring-and-lua-pipeline) <br/>
 > [redis > transaction](https://redis.io/docs/latest/develop/interact/transactions/)
