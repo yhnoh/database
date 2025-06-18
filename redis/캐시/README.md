@@ -77,6 +77,10 @@
   - RDB에서는 복잡한 명령어를 사용하여 이를 해석하기 위한 쿼리 파싱이나 많은 인덱스 중 적절한 인덱스를 선택하기위한 쿼리 최적화와 같은 진행을 하기 때문에 레디스에 비해 명령어 해석에 대한 오버헤드가 크다.
 - 레디스는 클라이언트 요청에 대하여 싱글 스레드로 처리하며, 멀티플렉싱, 이벤트 루프와 같은 개념을 활용하여 많은 클라이언트의 요청을 처리할 수 있다.
 
+<br/>
+
+> [Redis는 싱글스레드인가?](https://junuuu.tistory.com/746)
+
 ### 캐시 저장소로써 활용될 수 있는 정책 지원
 - 캐시는 ***임시 데이터 저장소*** 이기 때문에 데이터의 ***수명 관리가 가능한 데이터 저장소를 사용***하는 것이 좋다.
 - 레디스는 데이터의 수명 관리를 할 수 있는 다양한 기능을 제공한다.
@@ -134,6 +138,5 @@ CONFIG SET maxmemory-policy allkeys-lru
   - Cluster 모드: 샤딩을 통한 데이터 분산 저장과 자동 페일오버 기능을 제공
 
 
-> [나무위키 > 캐시](https://namu.wiki/w/%EC%BA%90%EC%8B%9C)
-> [📚 캐시(Cache) 설계 전략 지침 💯 총정리](https://inpa.tistory.com/entry/REDIS-%F0%9F%93%9A-%EC%BA%90%EC%8B%9CCache-%EC%84%A4%EA%B3%84-%EC%A0%84%EB%9E%B5-%EC%A7%80%EC%B9%A8-%EC%B4%9D%EC%A0%95%EB%A6%AC)
-> [Redis는 싱글스레드인가?](https://junuuu.tistory.com/746)
+> [나무위키 > 캐시](https://namu.wiki/w/%EC%BA%90%EC%8B%9C) <br/>
+> [📚 캐시(Cache) 설계 전략 지침 💯 총정리](https://inpa.tistory.com/entry/REDIS-%F0%9F%93%9A-%EC%BA%90%EC%8B%9CCache-%EC%84%A4%EA%B3%84-%EC%A0%84%EB%9E%B5-%EC%A7%80%EC%B9%A8-%EC%B4%9D%EC%A0%95%EB%A6%AC) <br/>
