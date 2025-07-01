@@ -70,58 +70,38 @@ dir "/data"
 - 대규모 데이터를 저장하게 될때 `SAVE` 명령어를 사용하게되면 클라이언트 요청을 처리할 수 없기 때문에 사용을 권장하지 않는다.
 
 ## AOF (Append Only File)
-### RDB (Snapshot)
-- 일정 시점에 메모리에 저장된 저ㄴ체 데이터를 바이너리 파일로 저장하는 방식
-- 
-- 전체 데이터가 저장된 시점에 
+- AOF는 레디스 인스턴스가 처리한 ***모든 쓰기 작업에 대한 로그를 기록하는 방식***이다.
+- AOF는 메모리에 영향을 끼치는 모든 쓰기 작업을 기록할 수 있으며 
 
-```sh
-save <seconds> <changes>
-stop-writes-on-bgsave-error yes
-rdbcompression yes
-rdbchecksum yes
-dbfilename dump.rdb
+### AOF Disk Flush
+- AOF 방식은 모든 쓰기 작업에 대하여 로그를 기록하기 때문에 RDB 방식보다 데이터 손실이 적다.
+  - AOF 방식은 모든 쓰기 작업을 기록하기 때문에, 장애가 발생하더라도 마지막으로 기록된 쓰기 작업까지 복구할 수 있다.
+- 모든 쓰기 작업이 발생할때마다 디스크에 데이터를 기록한다면 안정성은 높아지지만 성능이 저하된다. 반대로 디스크 쓰기 작업의 빈도를 줄이면 성능은 향상되지만 데이터 손실이 발생할 수 있다.
+- 레디스 `appendfsync` 설정을 통해서 쓰기 작업 발생시 AOF 파일에 얼마나 자주 데이터를 기록할지를 설정할 수 있다.
 
-```
-### 특정 조건에 따른 RDB 스냅샷 생성
+#### AOF Disk Flush 과정
+- 클리아언트 요청으로 인하여 쓰기 작업이 발생하였다고 해서 레디스가 디스크에 직접 접근하여 기록하는 것은 아니다.
+- 레디스에서 쓰기 작업이 발생하면 커널 영역의 OS 버퍼에 임시로 저장된다.
+- OS 버퍼에 저장된 데이터는 `fsync` 시스템 콜을 통해서 디스크에 기록된다.
+  - 일반적인 리눅스 운영체제에서는 30초마다 OS 버퍼에 저장된 데이터를 디스크에 기록한다.
 
-```sh
+#### appendfsync 설정
+- `appendfsync always`
+  - 쓰기 작업 발생시마다 `fsync` 시스템 콜을 호출하여 AOF 파일에 데이터를 기록한다.
+  - 안정성은 높지만 성능이 저하된다.
+- `appendfsync everysec` (default)
+  - 쓰기 작업이 발생하면 OS 버퍼에 데이터를 저장하고, 백그라운드에서 1초마다 `fsync` 시스템 콜을 호출하여 AOF 파일에 데이터를 기록한다.
+  - 약간의 데이터 유실은 발생할 수 있지만 성능이 향상된다.
+- `appendfsync no`
+  - 레디스는 OS 버퍼에 데이터를 저장하기만 하고, `fsync` 시스템 콜을 통한 디스크 기록은 운영체제에 맡긴다.
+  - 일반적인 리눅스 운영체제에서는 30초마다 OS 버퍼에 저장된 데이터를 디스크에 기록하며, 안정성은 가장 낮지만 성능은 가장 높다.
+- AOF 파일에서 데이터 유실은 `appendfsync` 설정에 따라 달라지면 최대 30초간의 데이터 쓰기 작업에 대한 유실이 발생할 수 있다.
+ 
 
-## CONFIG GET 명령어를 통한 RDB 설정 확인
-127.0.0.1:6379> CONFIG GET save
-1) "save"
-2) "3600 1 300 100 60 10000"
-
-## CONFIG SET 명령어를 통한 RDB 설정 변경
-127.0.0.1:6379> CONFIG SET save ""
-OK
-
-127.0.0.1:6379> CONFIG GET save
-1) "save"
-2) ""
-
-```
-
-### 수동으로 RDB 파일 생성
-- SAVE, BGSAVE 명령어를 통해서 수동으로 RDB 파일을 생성할 수 있다.
-- SAVE: 동기적으로 RDB 파일을 생성
-- BGSAVE: 비동기적으로 RDB 파일을 생성
-
-
-### AOF (Append Only File)
-- 레디스 인스턴스가 처리한 모든 쓰기 작업에 대한 로그를 기록하는 방식이다.
-
-
-
+### AOF Rewrite
 - 하나의 인스턴스에 RDB 및 AOF 옵션을 동시에 사용하는 것이 가능하다.
 - 헤디스 인스턴스의 실행 도중에 데이터 파일을 읽어들일 수 없다.
 
-### AOF (Append Only File)
-
-- 원하는 시점으로 복구가 가능하다.
-### RDB (Redis Database)
-
-- 시점 단위의 데이터 백업이 가능하게 때문에 특정 시점으로 복구가 가능하다.
 
 > [Redis 7.2 Configuration](https://raw.githubusercontent.com/redis/redis/7.2/redis.conf)
 > [Redis Docs > Persistence](https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/)
