@@ -97,13 +97,76 @@ dir "/data"
   - 일반적인 리눅스 운영체제에서는 30초마다 OS 버퍼에 저장된 데이터를 디스크에 기록하며, 안정성은 가장 낮지만 성능은 가장 높다.
 - AOF 파일에서 데이터 유실은 `appendfsync` 설정에 따라 달라지면 최대 30초간의 데이터 쓰기 작업에 대한 유실이 발생할 수 있다.
  
+ > [](https://redisgate.kr/redis/configuration/param_appendfsync.php)
 
 ### AOF Rewrite
-- 하나의 인스턴스에 RDB 및 AOF 옵션을 동시에 사용하는 것이 가능하다.
-- 헤디스 인스턴스의 실행 도중에 데이터 파일을 읽어들일 수 없다.
+- AOF 파일은 모든 쓰기 작업을 기록하기 때문에 시간이 지남에 따라서 AOF 파일의 크기가 커진다.
+- ***AOF 파일의 크기가 커지게 되면 AOF 파일을 작성하는 시간 및 AOF 파일을 읽어드려 복구하는 시간이 길어지게된다.***
+  - AOF 파일 I/O 작업의 비효율성 증대
+- 때문에 현재 레디스 메모리의 상태를 기반으로 AOF 파일을 다시 작성하여 AOF 파일의 크기를 줄이는 작업을 수행하며 ***이를 재구성 또는 Rewrite라고 한다.***
+
+#### AOF Rewrite의 필요성 예시
+- 예를 들어서 데이터를 1씩 증가하는 작업을 100번 수행한다다고 가정했을때, AOF 파일에는 `INCR key1` 명령어가 100번 기록될 것며 AOF 파일의 크기가 점점 커지게된다.  
+```sh
+### appendonly.aof.[시퀀스].incr.aof 파일 내용
+$4
+INCR
+$4
+key1
+*2
+$4
+INCR
+$4
+key1
+....
+```
+- 이런 경우 `INCR key1 100` 또는 `SET key1 100` 명령어로 AOF 파일을 재구성하여 AOF 파일의 크기를 줄일 수 있다.
+
+#### Redis 7.0 이상 기준의 AOF Rewrite 과정 (Multi Part AOF Mechanism)
+
+- 레디스 7.0 이후에는 `base`와 `incr` 파일 및ㅊ `manifest` 파일로 구성된 Multi Part AOF Mechanism을 사용한다.
+  - `base` 파일: ***레디스의 현재 상태를 기반으로 생성된 AOF 파일, 명령어가 재구성된 파일***
+  - `incr` 파일: `base` 파일이 생성된 이후에 발생한 ***쓰기 작업을 기록하는 AOF 파일***
+  - `manifest` 파일: ***`base`와 `incr` 파일의 메타데이터***
+
+1. AOF Rewrite 시작
+    - 레디스가 `fork()` 시스템 콜을 통해서 자식 프로세스를 생성한다.
+2. base 파일 생성
+   - `fork()` 시점에 레디스 데이터의 상태를 기반으로 명령어를 압축하여 base 파일에 저장한다.
+3. incr 파일 생성 및 기록
+   - base 파일이 생성되고 저장되는 동안 `fork()`된 시점 이후에 발생하는 쓰기 작업을 기록한다.
+4. AOF Rewirte 완료
+   - base 파일의 재구성이 완료되면 임시 매니페스트 파일을 생성한 뒤, 변경된 버전으로 파일 내용을 업데이트한다.
+   - 임시 매니패스트 파일을 기반으로 매니패스트 파일을 원자적으로 업데이트한다.
+   - 이후 이전 AOF 파일을 삭제한다.
+
+> 만약 AOF Rewrite 과정이 실패하더라도, ***이전 AOF 파일이 존재하기 때문에 데이터 손실은 발생하지 않는다.***
+
+#### AOF Rewirte 자동 수행 및 수동 수행
+- 레디스 설정 파일에서 `auto-aof-rewrite-percentage`와 `auto-aof-rewrite-min-size` 설정을 통해서 ***AOF Rewrite를 자동으로 수행***할 수 있다.
+  - `auto-aof-rewrite-percentage`: AOF 파일의 크기가 이전 AOF 파일 크기의 몇 퍼센트 이상 커졌을 때 AOF Rewrite를 수행할지를 설정한다.
+  - `auto-aof-rewrite-min-size`: AOF 파일의 크기가 최소 몇 바이트 이상일 때 AOF Rewrite를 수행할지를 설정한다.
+    - `auto-aof-rewrite-min-size` 옵션이 필요한 경우는 이전 AOF 파일의 크기가 너무 작을때 `auto-aof-rewrite-percentage` 옵션으로 인하여 AOF Rewrite가 자주 발생하는 경우가 발생할 수 있다.
+  - 예를 들어서 `auto-aof-rewrite-percentage`를 100으로 설정하고, `auto-aof-rewrite-min-size`를 64MB로 설정하면 AOF 파일의 크기가 64MB 이상이고, 이전 AOF 파일의 크기의 100% 이상 커졌을 때 AOF Rewrite가 수행된다.
+- `BGREWRITEAOF` 명령어를 통해서 AOF Rewrite를 수동으로 수행할 수 있다.
 
 
-> [Redis 7.2 Configuration](https://raw.githubusercontent.com/redis/redis/7.2/redis.conf)
-> [Redis Docs > Persistence](https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/)
+> [Redis Docs > Persistence > Log rewriting](https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/) <br/>
+> [Redis Docs > Persistence > Append-only file](https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/) <br/>
+<br/>
+
+
+## 레디스 백업시 주의 사항
+- 레디스 백업시 자식 프로세스르 생성하여 비동기적으로 백업을 진행할때 Copy-on-Write(COW) 방식으로 백업을 진행한다.
+  - RDB 자동 백업 및 `BGSAVE` 명령어 사용, AOF Rewrite 수행
+  > Copy-on-Write: 부모 프로세스와 자식 프로세스가 동일한 메모리 페이지를 공유하고 있으며, ***부모 프로세스가 메모리 페이지를 수정하게 되면 자식 프로세스는 해당 페이지를 복사하여 사용***하게 된다.
+- Copy-on-Write 방식을 통해서 모든 데이터를 자식 프로세스가 복사하지 않기 때문에 메모리 사용량이 적고, 자식 프로세스가 백업을 진행하는 동안 부모 프로세스는 계속해서 클라이언트 요청을 처리할 수 있다.
+- 하지만 최악의 경우에 기존의 레디스 메모리 사용량의 100%에 가까운 상태에서 백업을 진행하게 되면, Out Of Memory(OOM) 오류가 발생하여 서버가 다운될 수 있다.
+- 때문에 레디스 `maxmemory` 설정을 통해서 서버의 실제 메모리 용량보다 여유를 가지고 설정하는 것이 안정적으로 서버를 운영할 수 있는 방안이다.
+
+
+
+> [Redis 7.2 Configuration](https://raw.githubusercontent.com/redis/redis/7.2/redis.conf) <br/>
+> [Redis Docs > Persistence](https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/) <br/>
 > [](https://raw.githubusercontent.com/redis/redis/7.2/redis.conf)
 > [케시 데이터 영구 저장하는 방법(RDB / AOF)](https://inpa.tistory.com/entry/REDIS-%F0%9F%93%9A-%EB%8D%B0%EC%9D%B4%ED%84%B0-%EC%98%81%EA%B5%AC-%EC%A0%80%EC%9E%A5%ED%95%98%EB%8A%94-%EB%B0%A9%EB%B2%95-%EB%8D%B0%EC%9D%B4%ED%84%B0%EC%9D%98-%EC%98%81%EC%86%8D%EC%84%B1)
