@@ -168,5 +168,6 @@ key1
 
 > [Redis 7.2 Configuration](https://raw.githubusercontent.com/redis/redis/7.2/redis.conf) <br/>
 > [Redis Docs > Persistence](https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/) <br/>
-> [](https://raw.githubusercontent.com/redis/redis/7.2/redis.conf)
+> [Redisgate > Params RDB](https://redisgate.kr/redis/configuration/param_save.php)
+> [Redisgate > Params AOF](https://redisgate.kr/redis/configuration/param_appendonly.php)
 > [케시 데이터 영구 저장하는 방법(RDB / AOF)](https://inpa.tistory.com/entry/REDIS-%F0%9F%93%9A-%EB%8D%B0%EC%9D%B4%ED%84%B0-%EC%98%81%EA%B5%AC-%EC%A0%80%EC%9E%A5%ED%95%98%EB%8A%94-%EB%B0%A9%EB%B2%95-%EB%8D%B0%EC%9D%B4%ED%84%B0%EC%9D%98-%EC%98%81%EC%86%8D%EC%84%B1)
