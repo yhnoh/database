@@ -124,7 +124,7 @@ key1
 
 #### Redis 7.0 이상 기준의 AOF Rewrite 과정 (Multi Part AOF Mechanism)
 
-- 레디스 7.0 이후에는 `base`와 `incr` 파일 및ㅊ `manifest` 파일로 구성된 Multi Part AOF Mechanism을 사용한다.
+- 레디스 7.0 이후에는 `base`와 `incr` 파일 및 `manifest` 파일로 구성된 Multi Part AOF Mechanism을 사용한다.
   - `base` 파일: ***레디스의 현재 상태를 기반으로 생성된 AOF 파일, 명령어가 재구성된 파일***
   - `incr` 파일: `base` 파일이 생성된 이후에 발생한 ***쓰기 작업을 기록하는 AOF 파일***
   - `manifest` 파일: ***`base`와 `incr` 파일의 메타데이터***
