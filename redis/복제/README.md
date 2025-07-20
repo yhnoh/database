@@ -6,16 +6,68 @@
   - 백업을 복제본에서 수행하도록 하여 마스터 노드의 부하를 줄이기 위함
 - Redis의 마스터 노드는 하나만 존재하면, 여러 개의 복제본을 가질수 있다. 마스터 노드만이 데이터 쓰기/읽기 작업이 가능하며 복제본은 데이터 읽기 작업만 가능하다.
 
+## Redis Replication 복제 방식
+
+
 ## Redis Replication 특징
+- 
 
-- Replication ID와 Offset
-  
-  - 모든 Redis 노드는 복제 ID를 가지고 있으며, 복제 ID는 오프셋과 쌍으로 구성되어 있다.
-  - 커맨드를 수행할 때마다 오프셋이 증가하며, 
+### 복제 노드에게 비동기식 데이터 전달
+- Redis의 마스터 노드는 복제 노드에게 ***데이터 전달시 비동기 방식으로 데이터를 전달***한다.
+  - 복제 노드가 명령을 처리하기 전까지 마스터 노드가 대기하지 않아도 되기 때문에, 복제 구조를 사용하더라도 낮은 지연 시간과 높은 처리량을 제공할 수 있다.
+- 복제 노드는 매 초마다 마스터 노드에게 정상 연결 및 데이터가 어디까지 동기화가 되어 있는지에 대한 PING을 보낸다.
+  - PING 명령어를 통해서 마스터 노드는 복제 노드가 정상적으로 연결되어 있는지 확인할 수 있고, 복제 노드가 어디까지 데이터를 동기화했는지 확인할 수 있다.
+- 비동기식 데이터 전달로 인하여 마스터 노드가 복제 노드에게 데이터를 전달하기 전에 마스터 노드가 다운되면, 복제 노드에는 최신 데이터가 반영되지 않을 수 있기 때문에 데이터 손실이 발생할 수 있다.
 
-- 부분 재동기화
+#### 서버 설정을 통한 데이터 전달 방식 설정
+- 
 
-- Secondary 복제 ID
+#### 복제 노드에게 동기식으로 데이터 전달 처리하기
+
+
+### Replication ID와 Offset
+- Redis는 ***Replication ID와 Offset을 통해서 마스터 노드와 복제 노드간의 동기화 상태를 확인하거나 유지***한다.
+  - Replication ID를 통해서 어떤 마스터 노드와 데이터를 동기화를 하는지 알 수 있고, Offset을 통해서 마스터 노드와 어디까지 데이터 동기화가 이루어졌는지 알 수 있다.
+- Replication ID와 Offset이 동일한 경우에는 마스터 노드와 복제 노드가 동일한 상태라는 것을 알 수 있고, 만약 Replication ID가 동일하더라도 Offset이 다르다면 마스터 노드와 복제 노드가 동기화되지 않은 상태라는 것을 알 수 있다.
+- 아래는 마스터 노드와 복제 노드의 Replication ID와 Offset을 확인을 통한 동기화 상태 확인 예시이다.
+```sh
+## 마스터 노드에서 복제 상태 확인
+INFO REPLICATION
+
+role:master
+connected_slaves:2
+## 복제 노드 정보 및 Offset을 통한 동기화 상태 확인
+slave0:ip=172.20.0.4,port=6379,state=online,offset=56,lag=0
+slave1:ip=172.20.0.3,port=6379,state=online,offset=56,lag=1
+master_failover_state:no-failover
+## Replication ID와 Offset 정보 확인
+master_replid:c3fd032d6651602daef865f17743149a643f08dc
+master_replid2:0000000000000000000000000000000000000000
+master_repl_offset:56
+
+```
+```sh
+## 복제 노드에서 복제 상태 확인
+INFO REPLICATION
+
+role:slave
+master_host:redis-master
+master_port:6379
+## 복제 노드가 마스터 노드로 부터 읽어들인 오프셋 정보
+slave_read_repl_offset:434
+## 복제 노드가 마스터 노드로 부터 성공적으로 동기화된 오프셋 정도
+slave_repl_offset:434
+## 마스터 노드의 Replication ID와 Offset 정보 확인
+master_replid:c3fd032d6651602daef865f17743149a643f08dc
+master_replid2:0000000000000000000000000000000000000000
+master_repl_offset:434
+
+```
+- 참고로 복제 노드의 `master_repl_offset - slave_repl_offset > 0`을 비교하여 복제 지연에 대한 정보도 유추해볼 수 있다.
+
+### 부분 재동기화
+
+### Secondary 복제 ID
   - redis는 Primary와 Secondary 복제 ID를 가지고 있다.
   - 복제 ID를 두개 가지고 있는 이유는 마스터 노드가 중지되어 복제 노드를 마스터 노드로 승격시킬때, 데이터 동기화 작업을 최소화하기 위해서이다.
   - 마스터 노드와 2개의 복제 노드가 있을때
