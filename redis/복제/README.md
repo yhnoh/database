@@ -84,8 +84,19 @@
   - PING 명령어를 통해서 마스터 노드는 복제 노드가 정상적으로 연결되어 있는지 확인할 수 있고, 복제 노드가 어디까지 데이터를 동기화했는지 확인할 수 있다.
 - 비동기식 데이터 전달로 인하여 마스터 노드가 복제 노드에게 데이터를 전달하기 전에 마스터 노드가 다운되면, 복제 노드에는 최신 데이터가 반영되지 않을 수 있기 때문에 데이터 손실이 발생할 수 있다.
 
-#### 서버 설정을 통한 데이터 전달 방식 설정
-- 
+#### 복제 구조에서 서버 설정을 통하여 조건 충족시에만 쓰기 작업 허용
+- 복제 구조에서 마스터 노드의 쓰기 작업시 비동기 방식으로 이루어지기 때문에, 복제 노드가 장애가 생기거나 복제 지연이 발생하더라도 마스터 노드가 쓰기 작업을 계속 진행할 수 있다.
+- 만약 복제 구조의 데이터의 일관성을 보장하거나 복제 지연의 최소화가 필요하다면, 설정을 통하여 클라이언트의 쓰기 요청을 제한할 수 있다.
+  - `min-replicas-to-write`: 마스터 노드가 쓰기 작업을 진행하기 위해서 최소한의 복제 노드 수를 설정 (default: 0)
+    - 예를 들어 `min-replicas-to-write 1`로 설정하면, 최소한 하나의 복제 노드가 정상적으로 연결되어 있어야만 마스터 노드가 쓰기 작업을 진행할 수 있다.
+  - `min-replicas-max-lag`: 마스터 노드가 쓰기 작업을 진행하기 위해서 복제 노드의 최대 지연 시간을 설정 (default: 10)
+    - 예를 들어 `min-replicas-max-lag 5`로 설정하면, 복제 노드의 지연 시간이 5초 이하인 경우에만 마스터 노드가 쓰기 작업을 진행할 수 있다.
+
+> [Redis Docs > Allow Writes Only with N Attached Replicas](https://redis.io/docs/latest/operate/oss_and_stack/management/replication/#allow-writes-only-with-n-attached-replicas)
+
+#### 복제 구조에서 클라이언트 명령어를 통하여 복제 지연 최소화 하기
+
+> [Redis Docs > WAIT](https://redis.io/docs/latest/commands/wait/)
 
 #### 복제 노드에게 동기식으로 데이터 전달 처리하기
 
@@ -240,5 +251,5 @@ docker exec -it redis-slave-2 redis-cli REPLICAOF redis-slave-1 6379
 
 
 ## References
-> [Redis Docs > Replication](https://redis.io/docs/latest/operate/oss_and_stack/management/replication/)
-> https://redis.io/docs/latest/commands/replicaof/
+> [Redis Docs > Replication](https://redis.io/docs/latest/operate/oss_and_stack/management/replication/) <br/>
+> [Redis Docs > REPLICAOF](https://redis.io/docs/latest/commands/replicaof/)
