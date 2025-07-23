@@ -86,19 +86,37 @@
 
 #### 복제 구조에서 서버 설정을 통하여 조건 충족시에만 쓰기 작업 허용
 - 복제 구조에서 마스터 노드의 쓰기 작업시 비동기 방식으로 이루어지기 때문에, 복제 노드가 장애가 생기거나 복제 지연이 발생하더라도 마스터 노드가 쓰기 작업을 계속 진행할 수 있다.
-- 만약 복제 구조의 데이터의 일관성을 보장하거나 복제 지연의 최소화가 필요하다면, 설정을 통하여 클라이언트의 쓰기 요청을 제한할 수 있다.
+- 만약 복제 구조의 ***강력한 데이터의 일관성을 보장하거나 복제 지연의 최소화가 필요하다면, 설정을 통하여 클라이언트의 쓰기 요청을 제한***할 수 있다.
   - `min-replicas-to-write`: 마스터 노드가 쓰기 작업을 진행하기 위해서 최소한의 복제 노드 수를 설정 (default: 0)
     - 예를 들어 `min-replicas-to-write 1`로 설정하면, 최소한 하나의 복제 노드가 정상적으로 연결되어 있어야만 마스터 노드가 쓰기 작업을 진행할 수 있다.
   - `min-replicas-max-lag`: 마스터 노드가 쓰기 작업을 진행하기 위해서 복제 노드의 최대 지연 시간을 설정 (default: 10)
-    - 예를 들어 `min-replicas-max-lag 5`로 설정하면, 복제 노드의 지연 시간이 5초 이하인 경우에만 마스터 노드가 쓰기 작업을 진행할 수 있다.
+    - 예를 들어 `min-replicas-max-lag 5`로 설정하면, 현재 복제 노드의 지연 시간이 5초 이하인 경우에만 마스터 노드가 쓰기 작업을 진행할 수 있다.
+```sh
+## Redis 마스터-복제 노드 시작
+docker compose up -d
+
+## min-replicas-to-write를 2로 설정
+docker exec -it redis-master redis-cli CONFIG SET min-replicas-to-write 2
+
+## 복제 노드 하나 다운
+docker compose down redis-slave-1
+
+## 마스터 노드에 쓰기 작업 요청 및 요청 실패 확인
+docker exec -it redis-master redis-cli SET key1 value1
+(error) NOREPLICAS Not enough good replicas to write.
+```
 
 > [Redis Docs > Allow Writes Only with N Attached Replicas](https://redis.io/docs/latest/operate/oss_and_stack/management/replication/#allow-writes-only-with-n-attached-replicas)
 
-#### 복제 구조에서 클라이언트 명령어를 통하여 복제 지연 최소화 하기
-
+#### 복제 구조에서 클라이언트 명령어를 통하여 데이터 동기화 상태 확인
+- Redis는 `WAIT <numreplicas> <timeout>` 명령어를 통해서 ***현재 클라이언트가 실행한 명령어가 복제 노드까지 전파되었는지를 확인***할 수 있다.
+  - `numreplicas`: 지정한 수만큼 복제 노드가 명령어를 처리할때 까지 대기
+  - `timeout`: 지정한 밀리초 동안 대기, 만약 지정한 시간 이내에 복제 노드가 명령어를 처리하였다면 대기하지 않고 응답
+  - `return`: `WAIT` 명령어를 요청한 이후 복제 노드가 명령어를 처리한 수를 반환
+- `WAIT` 명령어를 사용하면, 클라이언트는 마스터 노드에게 실행한 명령어가 복제 노드에게 얼마만큼 전파되었는지를 확인할 수 있으며, 이를 통해서 추가 로직을 구현할 수 있다.
+  > 참고로 해당 기능이 가능한 이유는 마스터 노드와 복제 노드의 Offset의 비교를 통하여 해당 클라이언트의 명령어가 복제 노드에게 전파되었는지를 확인할 수 있기 때문이다.
 > [Redis Docs > WAIT](https://redis.io/docs/latest/commands/wait/)
 
-#### 복제 노드에게 동기식으로 데이터 전달 처리하기
 
 
 ### Replication ID와 Offset
