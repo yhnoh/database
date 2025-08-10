@@ -10,8 +10,102 @@
 
 ### Redis Cluster Create
 ```sh
+## redis.conf 설정
+port 7000
+cluster-enabled yes
+cluster-config-file nodes.conf
+cluster-node-timeout 5000
+appendonly yes
+
+## 클러스터 생성 및 마스터-슬레이브 노드 설정
 redis-cli --cluster create [host1:port1 host2:port2 ... hostN:portN] --cluster-replicas 1 --cluster-yes
+
+## Redis Cluster 노드별 해시 슬롯 할당 및 마스터-슬레이브 설정 확인
+Master[0] -> Slots 0 - 5460
+Master[1] -> Slots 5461 - 10922
+Master[2] -> Slots 10923 - 16383
+Adding replica redis-node-5:6383 to redis-node-1:6379
+Adding replica redis-node-6:6384 to redis-node-2:6380
+Adding replica redis-node-4:6382 to redis-node-3:6381
+M: da3c676c80bb8934ec7ae40e3405e132c5c686d1 redis-node-1:6379
+   slots:[0-5460] (5461 slots) master ## 마스터 노드 해시 슬롯 할당
+M: 448d727302eabb0096f53b34d00d226ae379d767 redis-node-2:6380
+   slots:[5461-10922] (5462 slots) master
+M: 6446ebc91c4c5c1c67aaf7fbcfca3e0245f0f5d2 redis-node-3:6381
+   slots:[10923-16383] (5461 slots) master
+S: 4eabb23a5e9fd248d9a2b06353ebe840b1dd3d0f redis-node-4:6382
+   replicates 6446ebc91c4c5c1c67aaf7fbcfca3e0245f0f5d2 ## 복제 노드 해시 슬롯을 할당하지 않음
+S: 01ebb88c6dcc386e92262a57b41923e36323299a redis-node-5:6383
+   replicates da3c676c80bb8934ec7ae40e3405e132c5c686d1
+S: 4c3b37d68c07b5d543d68e3fa7a7216f62442f02 redis-node-6:6384
+   replicates 448d727302eabb0096f53b34d00d226ae379d767
+>>> Nodes configuration updated
+>>> Assign a different config epoch to each node
+>>> Sending CLUSTER MEET messages to join the cluster
+Waiting for the cluster to join
+..
+>>> Performing Cluster Check (using node redis-node-1:6379)
+M: da3c676c80bb8934ec7ae40e3405e132c5c686d1 redis-node-1:6379
+   slots:[0-5460] (5461 slots) master
+   1 additional replica(s)
+S: 4c3b37d68c07b5d543d68e3fa7a7216f62442f02 172.20.0.3:6384
+   slots: (0 slots) slave
+   replicates 448d727302eabb0096f53b34d00d226ae379d767
+S: 4eabb23a5e9fd248d9a2b06353ebe840b1dd3d0f 172.20.0.6:6382
+   slots: (0 slots) slave
+   replicates 6446ebc91c4c5c1c67aaf7fbcfca3e0245f0f5d2
+M: 448d727302eabb0096f53b34d00d226ae379d767 172.20.0.4:6380
+   slots:[5461-10922] (5462 slots) master
+   1 additional replica(s)
+M: 6446ebc91c4c5c1c67aaf7fbcfca3e0245f0f5d2 172.20.0.2:6381
+   slots:[10923-16383] (5461 slots) master
+   1 additional replica(s)
+S: 01ebb88c6dcc386e92262a57b41923e36323299a 172.20.0.5:6383
+   slots: (0 slots) slave
+   replicates da3c676c80bb8934ec7ae40e3405e132c5c686d1
+[OK] All nodes agree about slots configuration.
+>>> Check for open slots...
+>>> Check slots coverage...
+[OK] All 16384 slots covered.
 ```
+
+### Redis Cluster 클라이언트 연결
+- Redis Cluster를 클라이언트가 연결하여 사용하기 위해서는 클러스터 모드를 지원하는 클라이언트를 사용해야 한다.
+- 만약 일반적인 클라이언트를 사용하여 데이터를 저장하거나 읽으려고 할때, 다른 노드에서 관리하는 해시 슬롯에 해당하는 키를 요청할 경우 에러가 발생한다. 
+```sh
+## 클러스터 모드를 지원하지 않는 클라이언트로 연결
+redis-cli
+## 명령어 수행
+127.0.0.1:6379> SET key1 value1
+(error) MOVED 9189 172.20.0.4:6380
+```
+- key1이라는 키를 입력하려고 했지만, 해당 키는 9189번 해시 슬롯으로 할당되어 있고, 이 슬롯은 172.20.0.4:6380 노드가 관리하고 있기 때문에 해당 노드로 리다이렉션 하라는 에러가 발생한다.
+
+#### Redis Cluster 모드를 이용한 클라이언트 연결
+- 클러스터 모드를 지원하는 클라이언트를 사용하면, 올바른 노드로 데이터를 저장하거나 읽을 수 있도록 자동으로 리다이렉션한다.
+- 많은 클라이언트 라이브러리들이 클러스터 모드를 지원하며, `redis-cli`는 `-c` 옵션을 사용하여 클러스터 모드로 연결할 수 있다. 
+```sh
+## 클러스터 모드를 지원하는 클라이언트 연결
+redis-cli -c
+## 명령어 수행
+127.0.0.1:6379> SET key1 value1
+## 172.20.0.4:6380 노드로 리다이렉션된 이후 데이터 저장 수행
+-> Redirected to slot [9189] located at 172.20.0.4:6380
+OK
+## 실제 데이터가 저장된 노드로 리다이렉션 됨
+172.20.0.4:6380> 
+```
+- 클러스터 모드로 연결하여 `SET key1 value1` 명령어 실행시, 클라이언트는 자동으로 172.20.0.4:6380 노드로 연결하여 명령어 요청을 재전송하여 처리한것을 확인할 수 있다.
+
+```
+SET key1 value1 명령어 수행
+(error) MOVED 발생, 이때 해시슬롯을 관리하는 노드 정보 제공
+클라이언트는 해당 해시 슬롯을 관리하는 노드로 연결 수행
+SET key1 value1
+```
+- 많은 클라이언트 라이브러리들은 리다이렉션 정보를 캐싱하여, 다음번에 동일한 키를 요청할때는 리다이렉션을 수행하지 않고 해당 노드로 직접 연결하여 데이터를 읽거나 쓰기 작업을 수행하도록 최적화되어 있다.
+- 때문에 만약 클러스터이 구조가 변경되어 해시슬롯에 대한 정보가 변경되었을때 해당 클라이언트가 캐싱된 정보를 업데이트하는지를 확인할 필요가 있다.
+
 
 
 
