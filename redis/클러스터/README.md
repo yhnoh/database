@@ -9,14 +9,25 @@
 
 
 ### Redis Cluster 생성
+- Redis Cluster 생성을 위해서는 설정 파일에서 클러스터 모드를 활성화하고, `create` 명령어를 사용하여 클러스터를 생성해야 한다.
+
+#### Redis Cluster 생성을 위한 설정 파일 구성
 - Redis Cluste를 활성화 하기 위해서는 `redis.conf` 파일에서 ***`cluster-enabled yes` 설정을 추가***해야 한다.
 - 모든 Redis Cluster 노드는 ***`nodes.conf` 파일에 클러스터 구성 정보를 저장***하며, Redis Cluster 노드가 시작할때 생성하고 필요할때 마다 업데이트 된다.
+  - nodes.conf 파일은 Redis Cluster에 구성된 각 노드의 상태를 확인할 수 있는 정보를 포함하고 있다.
 ```sh
 ## redis.conf 설정
 cluster-enabled yes
 cluster-config-file nodes.conf
 ```
-- Redis Cluster 구성시 모든 노드들은 자체적인 노드 ID를 가지고 있으며, Cluster에 구성된 모든 노드들이 다른 노드의 ID를 가지고 있다.
+
+#### Redis Cluster 생성을 위한 명령어
+- 설정 파일에서 클러스터 모드를 활성화한 이후, `create` 명령어를 사용하여 Redis Cluster를 생성할 수 있다.
+  - `redis-cli --cluster create [host1:port1 host2:port2 ... hostN:portN] --cluster-replicas 1 --cluster-yes`
+  - `--cluster-replicas 1`: 각 마스터 노드에 대해 하나의 복제 노드를 생성
+  - `--cluster-yes` 클러스터 생성 시 사용자에게 확인을 묻지 않고 자동으로 클러스터를 생성
+- Redis Cluster 생성 시 모든 노드들은 자체적인 노드 ID를 가지고 있으며, Cluster에 구성된 모든 노드들이 다른 노드의 ID를 가지고 있다.
+
 ```sh
 ## 클러스터 생성 및 마스터-슬레이브 노드 설정
 redis-cli --cluster create [host1:port1 host2:port2 ... hostN:portN] --cluster-replicas 1 --cluster-yes
@@ -70,6 +81,8 @@ S: 01ebb88c6dcc386e92262a57b41923e36323299a 172.20.0.5:6383
 >>> Check slots coverage...
 [OK] All 16384 slots covered.
 ```
+
+- [클러스터 생성 스크립트](./cluster-create.sh)
 
 ### Redis Cluster Node 정보 확인
 
@@ -202,8 +215,9 @@ redis-cli --cluster reshard <host>:<port> --cluster-from <node-id> --cluster-to 
 ### Shading
 - 
 
+> [Redis Docs > Scale with Redis Cluster](https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/) <br/>
+> [Redis Docs > Redis cluster specification](https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/) <br/>
 
-> [Redis Docs > Cluster](https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/)
 > https://meetup.nhncloud.com/posts/226
 > https://cla9.tistory.com/102
 > https://www.youtube.com/watch?v=mPB2CZiAkKM

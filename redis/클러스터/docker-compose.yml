@@ -44,4 +44,10 @@ services:
     volumes:
       - ./redis/6384/redis.conf:/etc/redis/redis.conf
     command: redis-server /etc/redis/redis.conf
+  redis-node-add:
+    image: redis:7.2.4-alpine
+    container_name: redis-node-add
+    volumes:
+      - ./redis/6385/redis.conf:/etc/redis/redis.conf
+    command: redis-server /etc/redis/redis.conf
   
