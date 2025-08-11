@@ -84,8 +84,28 @@ S: 01ebb88c6dcc386e92262a57b41923e36323299a 172.20.0.5:6383
 
 - [클러스터 생성 스크립트](./cluster-create.sh)
 
-### Redis Cluster Node 정보 확인
+### Redis Cluster Node 상태 확인
+- `cluster nodes` 명령어를 사용하여 Redis Cluster에 구성된 노드들의 상태를 확인할 수 있다.
+  - `redis-cli cluster nodes`
+- 해당 정보는 `nodes.conf` 파일에 저장된 내용을 기반으로 하며, 각 노드의 ID, IP 주소 및 포트, 마스터/슬레이브 상태, 해시 슬롯 할당 정보 등을 포함하고 있다.
 
+```sh
+cluster nodes
+<id> <ip:port@cport[,hostname]> <flags> <master> <ping-sent> <pong-recv> <config-epoch> <link-state> <slot> <slot> ... <slot>
+
+id: 노드 ID
+ip:port@cport: 노드의 IP 주소와 포트, 클러스터 버스 포트
+flags: 노드의 상태 (master, slave, myself 등)
+master: 슬레이브 노드인 경우 마스터 노드의 ID
+ping-sent: 마지막 PING 메시지를 보낸 시간, 보류 중인 PING이 없다면 0 있다면 마지막 PING 메시지를 보낸 시간
+pong-recv: 마지막 PONG 메시지를 받은 시간
+config-epoch: 노드의 구성 에폭 (구성 변경 시 증가)
+link-state: 노드의 연결 상태 (connected/disconnected)
+slot: 노드가 관리하는 해시 슬롯
+```
+
+- [클러스터 상태 확인 스크립트](./cluster-nodes.sh) <br/>
+- [Redis Docs > Cluster Nodes](https://redis.io/docs/latest/commands/cluster-nodes/)
 
 ### Redis Cluster 클라이언트 연결
 - Redis Cluster는 여러 개의 노드로 구성되어 있으며 키의 이름에 따라서 어느 노드에 저장될지를 결정하게 된다.
