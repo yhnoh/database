@@ -7,6 +7,16 @@
   - 스케일 아웃 가능
   - 자동 장애 조치 (Auto Failover)
 
+### Redis Cluster Architecture
+단일 장애점(Single point of failure)이 없는 토폴로지: 메쉬(Mesh)   ---»   Redis Cluster
+- Redis는 서로가 서로의 노드의 상태를 확인하는 작업을 수행하며 만약 하나의 노드가 장애가 일어나더라도 Slave노드를 Master로 승격시킨다던지, 
+- 일부 노드가 다운되어도 다른 노드에 영향을 주지 않지만, 과반수 이상의 노드가 다운되면 레디스 클러스터는 멈추게 된다.
+- 클라이언트는 어느 노드든지 접속해서 클러스터 구성 정보(슬롯 할당 정보)를 가져와서 보유하며, 입력되는 키(key)에 따라 해당 노드에 접속해서 처리한다.
+
+> [redis > redis-enterprise-cluster-architecture](https://redis.io/redis-enterprise/technology/redis-enterprise-cluster-architecture/)
+
+
+## Redis Cluster 구성 및 사용
 
 ### Redis Cluster 생성
 - Redis Cluster 생성을 위해서는 설정 파일에서 클러스터 모드를 활성화하고, `create` 명령어를 사용하여 클러스터를 생성해야 한다.
@@ -99,7 +109,7 @@ flags: 노드의 상태 (master, slave, myself 등)
 master: 슬레이브 노드인 경우 마스터 노드의 ID
 ping-sent: 마지막 PING 메시지를 보낸 시간, 보류 중인 PING이 없다면 0 있다면 마지막 PING 메시지를 보낸 시간
 pong-recv: 마지막 PONG 메시지를 받은 시간
-config-epoch: 노드의 구성 에폭 (구성 변경 시 증가)
+config-epoch: 노드의 구성 epoch (구성 변경 시 증가)
 link-state: 노드의 연결 상태 (connected/disconnected)
 slot: 노드가 관리하는 해시 슬롯
 ```
@@ -145,6 +155,8 @@ SET key1 value1
 - 많은 클라이언트 라이브러리들은 리다이렉션 정보를 캐싱하여, 다음번에 동일한 키를 요청할때는 리다이렉션을 수행하지 않고 해당 노드로 직접 연결하여 데이터를 읽거나 쓰기 작업을 수행하도록 최적화되어 있다.
 - 때문에 만약 클러스터이 구조가 변경되어 해시슬롯에 대한 정보가 변경되었을때 해당 클라이언트가 캐싱된 정보를 업데이트하는지를 확인할 필요가 있다.
 
+
+
 ### Redis Cluster 자동 페일오버
 - Redis Replication 구조에서는 마스터 노드에 장애가 발생하면, 수동으로 복제 노드를 마스터로 승격시켜야한다.
   - 이로 인해서 수동으로 장애 조치를 수행하는 동안 서비스의 연속성을 보장할 수 없으며 고가용성의 확보가 어렵다는 단점이 있다.
@@ -184,27 +196,43 @@ c2c6fbbf4244c0aeab639a3646671e7f3faa270d 172.20.0.5:6383@16383 myself,master - 0
 
 > [Redis Docs > The cluster bus](https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/#the-cluster-bus)
 
-### Redis Cluster Sharding
+### Redis Cluster 리샤딩
 - Redis 마스터 노드가 가지고 있는 해시슬롯중 일부를 다른 마스터로 이동하는 것이 가능하며 이를 리샤딩이라한다.
-- 
+- 리샤딩은 클러스터내의 노드간에 해시 슬롯을 재분배하는 작업으로써, 노드간의 데이터 균형을 맞추어 클러스터의 성능을 최적화 하는데 사용할 수 있다.
+  - 노드의 추가 또는 삭제시 데이터의 균형을 맞추기 위하여 사용
+  - 리샤딩을 통해서 노드간의 데이터 균형을 맞추고, 클러스터의 성능을 최적화
+- 리샤딩을 수행하는 방법은 크게 `reshard` 명령어를 사용하여 해시 슬롯을 특정 수의 해시슬롯을 분배시키는 방법과, `rebalance` 명령어를 사용하여 가중치를 고려하거나 균등하게 해시 슬롯을 재분배하는 방법이 있다.
 
-docker exec -it redis-node-1 redis-cli --cluster reshard 127.0.0.1:7000
-docker exec -it redis-node-1 redis-cli --cluster reshard redis-node-1:6379 --cluster-from 45127b3c8dc28d7ed3af02f6f2e7300a71496897 --cluster-to 4105d7b13f62b63ff24a7349983b581cd9aa0d41 --cluster-slots 100 --cluster-yes
+#### reshard 명령어 사용해보기
+- `reshard` 명령어를 사용하여 특정 마스터 노드에서 다른 마스터 노드로 해시 슬롯을 이동시킬 수 있다.
+```sh
+redis-cli --cluster reshard [host:port] \
+    --cluster-from [node-id] \
+    --cluster-to [node-id] \
+    --cluster-slots [number of slots] \
+    --cluster-yes
 
-redis-cli --cluster reshard <host>:<port> --cluster-from <node-id> --cluster-to <node-id> --cluster-slots <number of slots> --cluster-yes
+[host:port]: Redis Cluster 내에 접속할 노드의 IP 주소와 포트
+--cluster-from: 해시 슬롯을 이동시킬 soruce 마스터 노드
+--cluster-to: 해시 슬롯을 이동할 destination 마스터 노드
+--cluster-slots: 이동할 해시 슬롯의 개수
+--cluster-yes: 사용자에게 확인을 묻지 않고 자동으로 리샤딩
+```
 
+- [클러스터 리샤딩 확인 스크립트](./cluster-reshard.sh) <br/>
 
-4105d7b13f62b63ff24a7349983b581cd9aa0d41 172.20.0.5:6380@16380 master - 0 1754913848538 2 connected 5461-10922
-1d7a44ee88789a5391d6631541b1050d8bbaa77d 172.20.0.3:6381@16381 master - 0 1754913849260 3 connected 10923-16383
-45127b3c8dc28d7ed3af02f6f2e7300a71496897 172.20.0.7:6379@16379 myself,master - 0 1754913849000 1 connected 0-5460
+#### rebalance 명령어 사용해보기
+- `rebalance` 명령어를 사용하여 노드간의 해시 슬롯을 가중치를 고려하거나 균등하게 재분배할 수 있다.
+```sh
+redis-cli --cluster rebalance [host:port] \
+    --cluster-weight <node1=w1...nodeN=wN> \
+    --cluster-use-empty-masters \
+--cluster-weight <node1=w1...nodeN=wN>: 각 노드의 가중치를 지정하여 해시 슬롯을 재분배
+--cluster-use-empty-masters: 빈 마스터 노드를 사용하여 해시 슬롯을 재분배
+```
 
-### Redis Cluster Architecture
-단일 장애점(Single point of failure)이 없는 토폴로지: 메쉬(Mesh)   ---»   Redis Cluster
-- Redis는 서로가 서로의 노드의 상태를 확인하는 작업을 수행하며 만약 하나의 노드가 장애가 일어나더라도 Slave노드를 Master로 승격시킨다던지, 
-- 일부 노드가 다운되어도 다른 노드에 영향을 주지 않지만, 과반수 이상의 노드가 다운되면 레디스 클러스터는 멈추게 된다.
-- 클라이언트는 어느 노드든지 접속해서 클러스터 구성 정보(슬롯 할당 정보)를 가져와서 보유하며, 입력되는 키(key)에 따라 해당 노드에 접속해서 처리한다.
+### Redis Cluster 노드 추가 및 삭제
 
-> [redis > redis-enterprise-cluster-architecture](https://redis.io/redis-enterprise/technology/redis-enterprise-cluster-architecture/)
 
 ### Redis Cluster Sharding
 - 하나의 DBMS에서 대량의 데이터를 처리하기 위하여 물리적인 저장공간을 분리하는 방식을 파티셔닝이(Partitioning)라 하고, 여러 DBMS에 데이터를 분리하는 방식을 샤딩(Sharding)이라고 한다. 

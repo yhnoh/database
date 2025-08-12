@@ -14,6 +14,8 @@ services:
       - redis-node-4
       - redis-node-5
       - redis-node-6
+      - redis-node-add-master
+      - redis-node-add-slave
   redis-node-2:
     image: redis:7.2.4-alpine
     container_name: redis-node-2
@@ -44,10 +46,16 @@ services:
     volumes:
       - ./redis/6384/redis.conf:/etc/redis/redis.conf
     command: redis-server /etc/redis/redis.conf
-  redis-node-add:
+  redis-node-add-master:
     image: redis:7.2.4-alpine
-    container_name: redis-node-add
+    container_name: redis-node-add-master
     volumes:
       - ./redis/6385/redis.conf:/etc/redis/redis.conf
     command: redis-server /etc/redis/redis.conf
-  
+  redis-node-add-slave:
+    image: redis:7.2.4-alpine
+    container_name: redis-node-add-slave
+    volumes:
+      - ./redis/6386/redis.conf:/etc/redis/redis.conf
+    command: redis-server /etc/redis/redis.conf
+ 
