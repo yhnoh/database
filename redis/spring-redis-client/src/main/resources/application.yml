@@ -1,0 +1,6 @@
+spring:
+  data:
+    redis:
+      lettuce:
+        shutdown-timeout: 100ms
+        read-from: replica-preferred
