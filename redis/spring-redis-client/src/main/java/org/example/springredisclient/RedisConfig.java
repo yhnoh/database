@@ -27,7 +27,7 @@ public class RedisConfig {
         RedisClusterConfiguration clusterRedisConfiguration = new RedisClusterConfiguration();
 
 
-        return new LettuceConnectionFactory(clusterRedisConfiguration, clientConfiguration)
+        return new LettuceConnectionFactory(clusterRedisConfiguration, clientConfiguration);
     }
 
     public LettuceConnectionFactory readForm(){
@@ -39,6 +39,8 @@ public class RedisConfig {
         RedisClusterConfiguration clusterRedisConfiguration = new RedisClusterConfiguration();
 
 
-        return new LettuceConnectionFactory(clusterRedisConfiguration, clientConfiguration)
+        return new LettuceConnectionFactory(clusterRedisConfiguration, clientConfiguration);
     }
+
+
 }

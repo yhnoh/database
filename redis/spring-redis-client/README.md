@@ -31,6 +31,8 @@ LettuceClientConfiguration clientConfiguration = LettuceClientConfiguration.buil
 - 하지만 Redis의 복제 방식은 비동기적으로 이루어지기 때문에, Slave 노드가 Master 노드의 최신 데이터를 즉시 반영하지 못하는 복제 지연이 발생할 수 있다.
 - 때문에 데이터의 일관성이 중요한 애플리케이션에서 읽기 작업을 Slave 노드에서 수행할 경우, 복제 지연으로 인하여 잘못된 데이터를 읽어올 위험이 있다.
 - 때문에 각 상황별로 적절한 읽기 노드 선택 전략을 수립하는 것이 중요하며, `LettuceConnectionFactory`는 이를 위하여 `ReadFrom` 설정을 제공한다.
+  - 만약 데이터 일관성이 매우 중요한 애플리케이션이라면, 모든 읽기 작업을 Master 노드에서 수행하도록 설정하는 것이 좋다.
+  - 반면에 읽기 성능이 더 중요하고, 약간의 데이터 불일치가 허용되는 경우에는 Slave 노드에서 읽기 작업을 수행하도록 설정할 수 있다.
 
 ### LettuceClientConfiguration에서 ReadFrom 설정하기
 ```java
@@ -48,12 +50,142 @@ LettuceClientConfiguration clientConfiguration = LettuceClientConfiguration.buil
 > https://github.com/redis/lettuce/wiki/ReadFrom-Settings
 
 
-### Serialization
+## Serialization
 - Redis는 기본적으로 문자열 형태로 데이터를 저장한다.
     - 실제로는 바이트 코드로 저장되지만, 사람이 읽을 수 있는 형태로 표현하면 문자열이다. 바이트 코드는 다양한 데이터 타입을 표현할 수 있지만, ***일반적으로 Redis Client 라이브러리는 문자열로 인코딩/디코딩***한다.
-- 따라서 객체를 다루는 애플리케이션에서는 객체를 그대로 Redis에 저장할 수 없다.
--
-- 따라서 객체를 Redis에 저장하려면 Redis가 이해할 수 있는 형식으로 직렬화(Serialization)해야 한다.
+- 따라서 객체를 다루는 애플리케이션에서는 객체를 그대로 Redis에 저장할 수 없고, 객체를 Redis가 이해할 수 있는 형식으로 변환해야 한다.
+- 객체를 문자열로 변환하는 과정에서 가장 널리 사용되는 방법은 JSON 직렬화이다. JSON 직렬화는 객체를 JSON 문자열로 변환하여 저장하는 방식으로, 다양한 프로그래밍 언어에서 지원된다.
+- Spring Data Redis에서는 다양한 직렬화/역직렬화 방식을 제공하며, `RedisSerializer` 인터페이스를 구현한 여러 클래스를 이용하여 직렬화/역직렬화를 수행하게 되며, `RedisTemplate`에서 이를 설정하여 사용할 수 있다. 
+
+### 주요 RedisSerializer 종류
+
+#### StringRedisSerializer
+- 문자열을 그대로 저장한다. 주로 키(key)와 값(value)이 모두 문자열인 경우에 사용된다.
+- 객체를 저장할때는 `toString()` 메서드를 호출하여 문자열로 변환한 후 직렬화한다. 때문에 객체의 필드 값을 직렬화하는 것이 아니라, 객체의 메모리 주소를 나타내는 문자열이 저장된다.
+
+```java
+StringRedisSerializer serializer = new StringRedisSerializer();
+User userJsonType = new User("userJsonType", 10);
+
+byte[] serialize = serializer.serialize(userJsonType.toString());
+
+// serialize = org.example.springredisclient.RedisSerializerTest$User@389c4eb1
+System.out.println("serialize = " + new String(serialize));
+```
+
+#### Jackson2JsonRedisSerializer
+- Jackson 라이브러리를 사용하여 JSON 직렬화한다. 객체 생성시, 클래스 타입 정보를 셋팅해주어야 하며 지정된 클래스 타입으로만 직렬화/역직렬화가 가능하다.
+
+```java
+ObjectMapper objectMapper = new ObjectMapper();
+Jackson2JsonRedisSerializer<User> serializer = new Jackson2JsonRedisSerializer<>(objectMapper, User.class);
+
+User userJsonType = new User("userJsonType", 10);
+
+byte[] serialize = serializer.serialize(userJsonType);
+// serialize = {"name":"userJsonType","age":10}
+System.out.println("serialize = " + new String(serialize));
+```
+
+- 하지만 정해진 클래스 타입으로만 직렬화/역직렬화가 가능하기 때문에, 다양한 클래스 타입의 객체를 저장해야 하는 경우에는 적합하지 않다.
+- 예를 들어서 Spring 에서는 RedisTemplate을 빈으로 등록하고 이를 다양한 곳에서 주입받아 사용하는데, 이때 여러 종류의 객체를 저장해야 한다면 Jackson2JsonRedisSerializer는 적합하지 않다.
+
+```java
+ObjectMapper objectMapper = new ObjectMapper();
+// 다양한 타입을 처리하기 위하여 Object.class 사용
+Jackson2JsonRedisSerializer<Object> serializer = new Jackson2JsonRedisSerializer<>(objectMapper, Object.class);
+
+User userJsonType = new User("userJsonType", 10);
+
+byte[] serialize = serializer.serialize(userJsonType);
+// 역직렬화 시 ClassCastException 발생
+User deserialize = (User) serializer.deserialize(serialize);
+```
+
+위 코드에서 다양한 타입을 처리하기 위해서 Object.class를 사용하였지만, 역직렬화 시점에 ClassCastException이 발생한다. <br/>
+이는 ObjectMapper가 역직렬화 시점에 클래스 타입 정보를 알 수 없기 때문에 Json 문자열을 LinkedHashMap으로 변환했기 때문이다. <br/> 
+이로 인하여 User 타입으로 캐스팅할 수 없게 된다.
+
+#### GenericJackson2JsonRedisSerializer
+
+Jackson 라이브러리를 사용하여 JSON 직렬화한다. 직렬화시, 클래스 타입 정보를 함께 저장하여, 다양한 클래스 타입의 객체를 직렬화/역직렬화할 수 있다.
+
+```java
+// 내부적으로 ObjectMapper에서 DefaultTyping 설정을 사용
+GenericJackson2JsonRedisSerializer serializer = new GenericJackson2JsonRedisSerializer();
+serializer.configure(objectMapper -> {
+    // 추가 설정 가능
+});
+
+User user = new User("user1", 10);
+
+byte[] serialize = serializer.serialize(user);
+
+// serialize = {"@class":"org.example.springredisclient.RedisSerializerTest$User","name":"user1","age":10}
+System.out.println("serialize = " + new String(serialize));
+```
+
+역직렬화 시점에 `@class` 필드에 클래스 타입 정보를 함께 저장하기 때문에, 다양한 클래스 타입의 객체를 직렬화/역직렬화할 수 있다. <br/>
+따라서 Spring 에서 RedisTemplate을 빈으로 등록하고, 이를 다양한 곳에서 주입받아 사용하는 경우에 적합하다. <br/>
+하지만 몇가지 단점이 존재한다.
+1. 리팩토링을 통해서 패키지 이동이나 클래스 이름 변경이 발생할 경우, 역직렬화가 실패할 수 있다. 
+   - 예를 들어 `CacheManager`에서 `GenericJackson2JsonRedisSerializer`를 사용할 경우, 캐싱 대상이 되는 클래스 타입이나 패키지가 변경되면 역직렬화가 실패할 수 있다.
+   - 이를 보완하기 위해서는 별도의 타입 매핑 전략을 수립하거나, 클래스 이름 변경 시점에 데이터 마이그레이션 작업이 필요하다.
+2. 데이터의 크기가 커질 수 있다.
+    - 클래스 타입 정보를 함께 저장하기 때문에, 직렬화된 데이터의 크기가 커질 수 있다. 이는 네트워크 전송 비용과 저장 공간에 영향을 미칠 수 있다.
+3. Java 이외의 프로그램에서는 `@class` 필드를 해석할 수 없다.
+    - 만약 Redis에 저장된 데이터를 Java 이외의 프로그램에서 읽어야 하는 경우, `@class` 필드를 해석할 수 없기 때문에 불필요한 정보가 포함된 JSON 데이터를 처리해야 한다.
+
+만약 캐시 대상이 되는 클래스의 패키지 이동이나 클래스 이름 변경이 발생할 경우에는 어떻게 대처하는 것이 좋을까?
+1. **타입 별칭 사용** <br/>
+직렬화 시점에 클래스 타입 정보를 별칭(alias)으로 매핑하여 저장하는 방법이다. @JsonTypeInfo 어노테이션과 @JsonSubTypes 어노테이션을 사용하여, 클래스 타입 정보를 별칭으로 매핑할 수 있다. <br/>
+참고로 위 어노테이션은 Json의 다형성(Polymorphism)을 지원하기 위한 어노테이션이다.
+```java
+    
+GenericJackson2JsonRedisSerializer serializer = new GenericJackson2JsonRedisSerializer();
+
+UserJsonType userJsonType = new UserJsonType("user1", 10);
+
+byte[] serialize = serializer.serialize(userJsonType);
+// serialize = {"@type":"user","name":"user1","age":10}
+System.out.println("serialize = " + new String(serialize));
+
+UserJsonType deserialize = serializer.deserialize(serialize, UserJsonType.class);
+Assertions.assertEquals(UserJsonType.class, deserialize.getClass());
+
+/**
+ * @JsonTypeInfo와 @JsonSubTypes를 사용하여 @type 필드로 변경 및 값을 user로 지정
+ */
+
+@JsonTypeInfo(
+    use = JsonTypeInfo.Id.NAME,
+    include = JsonTypeInfo.As.PROPERTY
+)
+@JsonSubTypes({
+        @JsonSubTypes.Type(value = UserJsonType.class, name = "user")
+})
+@Getter
+public static class UserJsonType {
+    private String name;
+    private int age;
+
+    public UserJsonType() {
+    }
+
+    public UserJsonType(String name, int age) {
+        this.name = name;
+        this.age = age;
+    }
+}
+```
+위 코드에서 어노테이션을 사용하여 `@type` 필드로 변경하고, 값을 `user`로 지정하였다. 이로 인해서 클래스의 이름이 변경되거나, 패키지가 이동하더라도, `@type` 필드와 값이 동일하다면 역직렬화가 정상적으로 수행된다. <br/>
+이를 활용하여 운영 환경에서도 별칭이 변경되지 않는한 자유롭게 리팩토링이 가능하다. 또한 MSA 환경에서 다른 서비스 간에 동일한 별칭을 사용하여 데이터를 공유할 수 도 있다. <br/>
+하지만 별칭이 중복되지 않도록 주의해야 하고, 쉽게 변경되지 않아야 하며, 별칭 관리에 대한 정책이 필요하다. 또한 MSA 환경에서 별칭을 공유하게 될경우 서비스 간의 강한 결합이 발생할 수 있다. <br/>
+
+2. **데이터 마이그레이션** <br/>
+
+
+
 
 > [망나니개발자 > 스프링이 제공하는 레디스 직렬화/역직렬화(Redis Serializer/Deserializer)의 종류와 한계](https://mangkyu.tistory.com/402)
 
