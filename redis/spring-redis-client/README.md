@@ -190,10 +190,110 @@ public static class UserJsonType {
 > [망나니개발자 > 스프링이 제공하는 레디스 직렬화/역직렬화(Redis Serializer/Deserializer)의 종류와 한계](https://mangkyu.tistory.com/402)
 
 
-### Redisson
+## Redisson
+
+Redisson은 Redis와 Valkey를 지원하는 Java 기반의 오픈소스 클라이언트 라이브러리이다. <br/>
+Lettuce, Jedis와 같은 Redis 클라이언트 라이브러리와 유사항 기능을 제공하지만, Redis에서 기본적으로 제공해주지 않는 추가 기능들을 제공한다. <br/>
+
+- 자바 컬렉션을 통해서 구현한 분산 컬렉션 구현체 제공 (예: RMap, RSet, RList 등..)
+- 자바 동기화 도구를 통해서 구현한 분산 동기화 구현체 제공 (예: RLock, RReadWriteLock 등...)
+- 자바 고수준 스레드 API를 통해 구현한 분산 ExecutorService 제공 (예: RExecutorService,  RScheduledExecutorService 등...)
+- Redisson Pro를 통한 고급 기능 제공 (예: Data partitioning, Queues, Reliable Pub/Sub 등..)
+
+자바와 동일한 인터페이스 및 스프링 통합 환경을 제공하며, 2개 이상의 분산 환경에서 ***Redis를 공유 자원으로 활용하여 다양한 분산 시스템을 구축할 수 있도록 돕는다.*** <br/>
+
+### Distributed Lock
+Redisson은 자바 Lock 인터페이스를 구현한 RLock 클래스를 제공하여, 분산 환경에서의 락(lock) 기능을 지원한다. <br/>
+보통 애플리케이션 서버의 경우 고가용성을 위하여 단일 서버가 아닌 여러대의 서버로 구성되어 있는 경우가 많다. <br/>
+이러한 환경에서 Java의 동기화 기법만으로는 원격 데이터베이스에 존재하는 공유 자원에 대한 동기화 문제를 해결할 수 없다. <br/>
+Distributed Lock은 여러 애플리케이션 서버에서 동시에 접근하는 공유 자원에 대한 동기화 문제를 해결해주며, 자바와 동일한 인터페이스를 제공해준다는 큰 장점이 있다. <br/>
+
+```java
+// 스레드 100개가 동시에 Counter 증가 시도
+int iter = 100;
+Counter counter = new Counter();
+Counter lockCounter = new Counter();
+
+ArrayList<Thread> threads = new ArrayList<>();
+ArrayList<Thread> lockThreads = new ArrayList<>();
+
+for (int i = 0; i < iter; i++) {
+    // Lock 없이 카운터 증가
+    Thread thread = new Thread(() -> {
+        try {
+            Thread.sleep(100);
+            counter.increment();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+
+    });
+    threads.add(thread);
+
+    // Distributed Lock을 사용한 카운터 증가
+    Thread lockThread = new Thread(() -> {
+
+        try {
+            RLock lock = redissonClient.getLock("lock");
+            // Uses pub/sub channel to notify other threads across all Redisson instances waiting to acquire a lock.
+            boolean isAcquired = lock.tryLock(100000, 1000, TimeUnit.MILLISECONDS);
+            if (isAcquired) {
+                try {
+                    Thread.sleep(100);
+                    lockCounter.increment();
+                } finally {
+                    if (lock.isLocked() && lock.isHeldByCurrentThread()) {
+                        lock.unlock();
+                    }
+                }
+            }
+
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+
+        lockThreads.add(new Thread(() -> {
+
+        }));
+    });
+    lockThreads.add(lockThread);
+
+}
+
+for (int i = 0; i < iter; i++) {
+    threads.get(i).start();
+    lockThreads.get(i).start();
+}
+
+for (int i = 0; i < iter; i++) {
+    threads.get(i).join();
+    lockThreads.get(i).join();
+}
+
+// "count = 93"
+System.out.println("count = " + counter.getCount());
+// "lock count = 100"
+System.out.println("lock count = " + lockCounter.getCount());
+```
+
+해당 코드는 100개의 스레드가 동시에 Counter 객체의 increment 메서드를 호출하여 카운터를 증가시키는 예제이다. <br/>
+첫번째 카운터는 Distributed Lock을 사용하지 않고, 두번째 카운터는 Distributed Lock을 사용하여 카운터를 증가시킨다. <br/>
+실행 결과를 보면 Distributed Lock을 사용하지 않은 카운터는 100이 아닌 93이 출력되는 반면, Distributed Lock을 사용한 카운터는 100이 출력되는 것을 확인할 수 있다. <br/>
+이는 Distributed Lock을 사용하지 않은 경우, 여러 스레드가 동시에 공유 자원에 접근하여 동시성 이슈가 발생했기 때문이다. <br/>
+반면에 Distributed Lock을 사용한 경우, 여러 스레드가 동시에 공유 자원에 접근하지 못하도록 막아주었기 때문에, 동시성 이슈가 발생하지 않았다. <br/>
+
+#### Lock
+- RLock은 Redis의 Pub/Sub 기능을 활용하여, 여러 애플리케이션 서버에서 동시에 접근하는 공유 자원에 대한 동기화 문제를 해결해준다.
 
 
-### 사용할만한 자료구조
+#### ReadWriteLock
+
+
+#### MuliLock
+
+
+> [Redisson](https://redisson.pro/docs/overview/)
+## Data Type
 
 #### PUB/SUB
 
