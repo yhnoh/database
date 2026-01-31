@@ -1,6 +1,6 @@
 
-
-
+## 왜 Redis 인가?
+Redis는 인메모리 데이터 
 
 
 ## Redis Client Graceful Shutdown
@@ -366,22 +366,73 @@ Set은 중복되지 않는 문자열 데이터의 집합을 저장하는 데이�
 
 #### 활용 방법
 1. 집합 연산: 교집합, 합집합, 차집합 등과 같은 집합 연산을 수행하는데 사용할 수 있다.
-2. 중복 데이터 관리: 중복되지 않는 데이터 목록을 관리하는데 사용할 수 있다. 예를 들어, 고유 방문자 목록, 좋아요를 누른 사용자 목록 등을 저장할 수 있다.
-3. 태그 관리: 블로그 게시물, 상품 등과 같은 항목에 대한 태그 정보를 저장하는데 사용할 수 있다.
-4. 추천 시스템: 사용자 선호 항목, 관심사 등을 저장하는데 사용할 수 있다.
+    - 집합 연산은 O(n)의 시간 복잡도를 가지기 때문에, 너무 큰 집합들에 대해서는 성능 저하가 발생할 수 있다.
+2. 중복 데이터 관리: 중복되지 않는 데이터 목록을 관리하는데 사용할 수 있다.
+   - 고유 방문자 목록, 좋아요를 누른 사용자, 즐겨찾기 목록 등을 통하여 중복 데이터를 자동으로 관리할 수 있다.
+   - 블로그 게시물, 상품 등과 같은 항목에 대한 카테고리 및 태그 정보를 관리하는 용도로도 활용할 수 있다.
 
 
 ### Sorted Set
-Sorted Set은 요소가 중복되지 않는 문자열 데이터의 집합이며, 각 요소에 점수(score)를 부여하여 정렬된 상태로 저장하는 데이터 타입이다. <br/>
+Sorted Set은 요소가 중복되지 않는 문자열 데이터(member)의 집합이며, 각 요소에 점수(score)를 부여하여 정렬된 상태로 저장하는 데이터 타입이다. <br/>
+Sorted Set은 Set과 유사하지만, 각 요소에 점수를 부여하여 정렬된 상태로 저장한다는 점에서 차이가 있다. <br/>
+member-score 형식의 구조를 가지고 있으며 score는 중복될 수 있지만, member는 중복될 수 없다. <br/>
+Sorted Set은 List와 Set의 속성을 둘다 가지고 있기 때문에 비슷한 명령어를 수행할 수 있는 장점이 있다.
+
+#### 활용 방법
+1. 리더보드 및 실시간 순위: 게임 점수, 랭킹 등과 같은 리더보드를 구현하는데 사용할 수 있다. 
+2. Sliding-Window Rate Limiter: "최근 5분동안 100회 이상 요청 불가"와 같은 Sliding-Window Rate Limiter를 구현하는데 사용할 수 있다.
+3. 우선순위 큐: 메시지 큐에 우선순위를 부여하여, 우선순위에 따라 메시지를 처리하는 우선순위 큐를 구현하는데 사용할 수 있다.
+   - Sorted Set을 이용하여 특정 이벤트를 처리하는 도중 급하게 처리해야할 이벤트가 발생했을때, 우선순위를 높여서 빠르게 처리할 수 있다.
+4. 타임라인: timestamp를 score로 사용하여, 사용자 활동 기록이나 예약 일정 등을 시간 순서대로 정렬하여 저장하는데 사용할 수 있다.
+
+
+## Redis Messaging Service
+
+### Stream
+Redis Stream은 Redis 5.0 버전에서 도입된 데이터 타입으로, 로그성 데이터와 비슷하게 데이터를 삭제하거나 변경하지 않고 순차적으로 추가되는 데이터를 저장하고 처리하는데 최적화된 데이터 구조이다. <br/>
+Stream은 메시지 큐와 유사한 기능을 제공하지만, 메시지 큐와 다르게 ***데이터를 삭제하지 않고, 데이터를 보존***하기 때문에, 이를 활용하여 저장된 메시지를 다시 재활용이 가능하다. <br/>
+또한 PEL&ACK를 이용하여 ***메시지를 안전하게 처리***할 수 잇으며, Consumer Group 기능을 제공하여, 여러 Consumer들이 ***병렬로 메시지를 처리***할 수 있고, Redis Stream은 Kafka의 Partition이란 개념이 없기 때문에, ***메시지가 들어온 순서대로 처리***된다. 
+
+
+![stream_architecture.png](img/stream_architecture.png)
+
+
+#### 구성 요소
+1. Entry ID (Unique Id): 각 메시지는 `<millisecondsTime>-<sequenceNumber>` 형식의 고유한 ID를 가진다.
+- millisecondsTime: 메시지가 추가된 시간(밀리초 단위)
+- sequenceNumber: 동일한 밀리초 내에서의 순서 번호
+
+2. Consumer Group: Stream에 저장된 메시지를 여러 소비자(Consumer)들이 병렬로 처리할 수 있다.
+- 각 Consumer Group은 독립적인 오프셋(읽기 위치)를 가지며, 소비자 그룹에 속한 소비자는 서로 다른 메시지를 처리할 수 있다.
+- 예를 들어 '주문 완료'라는 Stream이 있다고 가정할 때, '알림 소비자 그룹' 및 '예약 소비자 그룹'이 동일한 메시지를 읽어들여 각각의 작업을 수행할 수 있다. 
+- 각기 다른 오프셋을 가질 수 있는 이유는 Redis가 각 Consumer Group마다 별도의 읽기 위치를 관리하기 때문이다. (Consumer Group 메타 데이터 관리)
+
+3. PEL(Pending Entries List) & ACK(Acknowledgement): 소비자가 메시지를 처리한 후, 해당 메시지에 대한 ACK를 보내어 메시지가 성공적으로 처리되었음을 알린다.
+- PEL은 아직 ACK되지 않은 메시지들의 목록을 관리하며, 소비자가 메시지를 처리한 후 ACK를 보내면 해당 메시지는 PEL에서 제거된다.
+> Traditionally, when a consumer processesed a message, it acknowledged it using the XACK command, which removed the entry reference from the Pending Entries List (PEL) of that specific consumer group.
+
+#### 소비자 그룹 관리하기
+소비자 그룹은 그룹별로 동일한 메시지를 읽을 수 있으며, 그룹 내에 소비자는 서로 다른 메시지를 처리할 수 있다. <br/>
+
+
+
+> [Gmarket > Redis Stream 적용기](https://dev.gmarket.com/113)
+> [Redis Docs > Streams](https://redis.io/docs/latest/develop/data-types/streams)
+
+### Redis Pub/Sub
+Redis는 데이터 타입 외에도 다양한 기능을 제공하며, 그 중 하나가 Pub/Sub 기능이다. <br/>
+PUB/SUB는 발행자-구독자 모델을 기반으로 하는 메시징 시스템으로, 발행자가 특정 채널에 메시지를 발행하면 해당 채널을 구독하고 있는 구독자들이 메시지를 수신하는 방식이다. <br/>
+Redis의 Pub/Sub은 최대 한번의 전달(At-Most-Once Delivery) 방식을 사용하며, 만약 구독자가 ***네트워크 장애나 오류로 인하여 메시지를 수신하지 못하는 경우에는 메시지가 손실***될 수 있다. <br/>
+즉, 메시지 브로커(RabbitMQ, Kafka 메시지 보존이, 재전송)와 같은 정교한 메시징 시스템과는 다르게, Redis Pub/Sub은 ***단순한 메시지 전달 기능만을 제공***한다. <br/>
+때문에 메시지 손실이 일어나지 않아야하며 정합성이 중요한 애플리케이션의 경우에는 Redis Pub/Sub을 사용하는 것이 적합하지 않을 수 있다. <br/>
+
 
 
 ### Time Series
 
 ### Geospatial
 
-### Stream
 
-### PUB/SUB
 > https://redis.io/docs/latest/develop/pubsub/
 
 
@@ -394,7 +445,10 @@ Sorted Set은 요소가 중복되지 않는 문자열 데이터의 집합이며,
 
 
 
-### 모니터링 및 관리
+## 모니터링 및 관리
 
 
 
+## 복원
+
+## 
