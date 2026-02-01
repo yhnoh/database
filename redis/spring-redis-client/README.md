@@ -386,6 +386,11 @@ Sorted Set은 List와 Set의 속성을 둘다 가지고 있기 때문에 비슷�
 4. 타임라인: timestamp를 score로 사용하여, 사용자 활동 기록이나 예약 일정 등을 시간 순서대로 정렬하여 저장하는데 사용할 수 있다.
 
 
+### Time Series
+
+### Geospatial
+
+
 ## Redis Messaging Service
 
 ### Stream
@@ -410,13 +415,126 @@ Stream은 메시지 큐와 유사한 기능을 제공하지만, 메시지 큐와
 3. PEL(Pending Entries List) & ACK(Acknowledgement): 소비자가 메시지를 처리한 후, 해당 메시지에 대한 ACK를 보내어 메시지가 성공적으로 처리되었음을 알린다.
 - PEL은 아직 ACK되지 않은 메시지들의 목록을 관리하며, 소비자가 메시지를 처리한 후 ACK를 보내면 해당 메시지는 PEL에서 제거된다.
 > Traditionally, when a consumer processesed a message, it acknowledged it using the XACK command, which removed the entry reference from the Pending Entries List (PEL) of that specific consumer group.
+- 소비자는 각각의 PEL을 가지며, 메시지를 처리한 후 ACK를 보내지 않으면, 해당 메시지는 PEL에 남아있게 된다.
 
-#### 소비자 그룹 관리하기
-소비자 그룹은 그룹별로 동일한 메시지를 읽을 수 있으며, 그룹 내에 소비자는 서로 다른 메시지를 처리할 수 있다. <br/>
+#### Stream 사용해보기
+
+1. **컨슈머 그룹 생성 및 메타데이터 확인** <br/>
+```redis
+-- order:complete stream의 컨슈머 그룹 생성, NotificationConsumerGroup, BookingConsumerGroup
+-- $는 스트림의 마지막 ID 이후를 의미 , XINFO STREAM 명령어에서 last-generated-id 값 이후에 메시지를 읽음, id가 0이면 스트림의 처음부터 메시지를 읽음
+-- MKSTREAM 옵션은 스트림이 존재하지 않을 경우 스트림을 생성
+XGROUP CREATE order:complete NotificationConsumerGroup $ MKSTREAM
+XGROUP CREATE order:complete BookingConsumerGroup $ MKSTREAM
+
+-- order:complete 스트림의 컨슈머 그룹 메타 데이터 정보 확인
+XINFO GROUPS order:complete
++-------------------------+---------+-------+-----------------+
+|name                     |consumers|pending|last-delivered-id|
++-------------------------+---------+-------+-----------------+
+|BookingConsumerGroup     |0        |0      |0-0              |
+|NotificationConsumerGroup|0        |0      |0-0              |
++-------------------------+---------+-------+-----------------+
+```
+먼저 order:complete 스트림에 NotificationConsumerGroup 및 BookingConsumerGroup이라는 두개의 소비자 그룹을 생성한다. <br/>
+각 그룹은 스트림의 `마지막 ID 이후($)부터 메시지를 읽기` 시작하며, 스트림이 존재하지 않을 경우 컨슈머 그룹 생성시 에러를 방지하기 위하여 `MKSTREAM` 옵션을 통해 스트림을 생성한다. <br/>
+만약 id가 0이면 스트림의 처음부터 메시지를 읽게 된다. <br/>
+메타 데이터 정보를 확인해보면, 각 그룹의 소비자 수(consumers), PEL에 남아있는 메시지 수(pending), 마지막으로 전달된 메시지 ID(last-delivered-id)를 확인할 수 있다. <br/>
 
 
+2. **스트림에 메시지 발행 및 컨슈머 그룹에서 메시지 읽기** <br/>
+```redis
+-- order:complete 스트림에 메시지 발행
+XADD order:complete * orderId 1
+-- order:complete 스트림의 메시지 확인
+XRANGE order:complete - + count 10
+-- order:complete 스트림의 메타 데이터 정보 확인
+XINFO STREAM order:complete
++------+---------------+----------------+------+-----------------+-----------------------------------------------------+-----------------------------------------------------+
+|length|radix-tree-keys|radix-tree-nodes|groups|last-generated-id|first-entry                                          |last-entry                                           |
++------+---------------+----------------+------+-----------------+-----------------------------------------------------+-----------------------------------------------------+
+|1     |1              |2               |2     |1769945775499-0  |{"id": "1769945775499-0", "fields": {"orderId": "1"}}|{"id": "1769945775499-0", "fields": {"orderId": "1"}}|
++------+---------------+----------------+------+-----------------+-----------------------------------------------------+-----------------------------------------------------+
 
-> [Gmarket > Redis Stream 적용기](https://dev.gmarket.com/113)
+```
+`XADD` 명령어를 통해서 스트림에 메시지를 발행한 이후에, `XRANGE` 명령어를 통해서 스트림에 저장된 메시지를 확인할 수 있다. <br/>
+메타 데이터 정보를 확인해보면 `last-generated-id`를 통해서 마지막으로 발행된 메시지 ID를 확인할 수 있으며, `length`를 통해서 스트림에 저장된 메시지 수를 확인할 수 있다. <br/>
+
+3. **컨슈머 그룹에서 메시지 읽기 및 PEL 확인** <br/>
+```redis
+-- NotificationConsumerGroup 컨슈머 그룹의 NotificationConsumer1, NotificationConsumer2 컨슈머가 각각 order:complete 스트림에서 메시지를 읽음
+-- NotificationConsumer1이 먼저 메시지를 읽어 들였기 때문에 NotificationConsumer2는 읽을 메시지가 없음
+XREADGROUP GROUP NotificationConsumerGroup NotificationConsumer1 COUNT 1 STREAMS order:complete >
+XREADGROUP GROUP NotificationConsumerGroup NotificationConsumer2 COUNT 1 STREAMS order:complete >
+-- BookingConsumerGroup 컨슈머 그룹의 BookingConsumer1 컨슈머가 order:complete 스트림에서 메시지를 읽음
+XREADGROUP GROUP BookingConsumerGroup BookingConsumer1 COUNT 1 STREAMS order:complete >
+
+-- 컨슈머 그룹의 메타데이터 확인
+XINFO GROUPS order:complete
++-------------------------+---------+-------+-----------------+
+|name                     |consumers|pending|last-delivered-id|
++-------------------------+---------+-------+-----------------+
+|BookingConsumerGroup     |1        |1      |1769945775499-0  |
+|NotificationConsumerGroup|2        |1      |1769945775499-0  |
++-------------------------+---------+-------+-----------------+
+
+XPENDING order:complete NotificationConsumerGroup
+XPENDING order:complete NotificationConsumerGroup - + 10 NotificationConsumer1
++---------------+---------------------+---------+---------------+
+|id             |consumer-name        |idle-time|delivered-times|
++---------------+---------------------+---------+---------------+
+|1769945775499-0|NotificationConsumer1|349036   |1              |
++---------------+---------------------+---------+---------------+
+```
+`XREADGROUP` 명령어를 통해서 각 컨슈머 그룹의 컨슈머들이 스트림에서 메시지를 읽어들인다. <br/>
+NotificationConsumerGroup 컨슈머 그룹은 2개의 컨슈머가 존재하지만, 메시지는 1개만 발행되었기 때문에 NotificationConsumer1 컨슈머만 메시지를 읽어들일 수 있다. <br/>
+BookingConsumerGroup 컨슈머 그룹은 NotificationConsumerGroup과 다른 오프셋을 가지기 때문에, BookingConsumer1 컨슈머가 메시지를 읽어들일 수 있다. <br/>
+`XINFO GROUPS`의 메타데이터를 확인해보면, 각 그룹의 소비자 수(consumers), PEL에 남아있는 메시지 수(pending), 마지막으로 전달된 메시지 ID(last-delivered-id)를 확인할 수 있다. <br/>
+`XPENDING` 명령어를 통해서 NotificationConsumerGroup 컨슈머 그룹의 PEL에 남아있는 메시지 목록을 확인할 수 있다. 내부 메타데이터 중에 `idle-time`은 메시지가 읽혀진 이후로부터 경과된 시간을 밀리초 단위로 나타낸다. 즉 `idle-time`이 크다는 의미는 오랫동안 메시지 처리가 정상적으로 이루어 지지 않아다는 것을 의미한다. <br/>
+때문에 애플리케이션 레벨에서 `idle-time`이 일정 시간 이상 경과된 메시지에 대해서는 재처리를 수행하는 로직을 구현하는 것이 좋다. <br/>
+
+4. **메시지 처리 완료 및 PEL에서 제거** <br/>
+```redis
+-- 메시지 처리 완료 후 ACK 명령어를 통해서 PEL에서 제거, 즉 소비자가 정상적으로 메시지를 처리했음을 알림
+XACK order:complete NotificationConsumerGroup 1769945775499-0
+XACK order:complete BookingConsumerGroup 1769945775499-0
+
+-- pending count가 0으로 변경되었는지 확인
+XINFO GROUPS order:complete
+
+-- PEL이 비어있는지 확인
+XPENDING order:complete NotificationConsumerGroup - + 10 NotificationConsumer1
+XPENDING order:complete BookingConsumerGroup - + 10 BookingConsumer1
+```
+
+메시지 처리가 완료된 후에는 `XACK` 명령어를 통해서 PEL에서 해당 메시지를 제거한다. 이는 소비자가 정상적으로 메시지를 처리했음을 알리는 것이다. <br/>
+`XINFO GROUPS` 명령어를 통해서 pending count가 0으로 변경되었는지 확인할 수 있으며, `XPENDING` 명령어를 통해서 PEL이 비어있는지 확인할 수 있다. <br/>
+
+#### Stream 사용시 주의사항
+1. **Stream 크기 관리 필요성** <br/>
+Redis Stream은 데이터를 삭제하지 않고 보존하기 때문에, 시간이 지남에 따라 스트림의 크기가 계속해서 증가할 수 있다. <br/>
+Kafka와 같이 하드디스크에 데이터를 저장하는 시스템과 다르게, Redis는 메모리 기반의 데이터 저장소이기 때문에, ***스트림의 크기가 커지면 메모리 부족 현상이 발생***할 수 있다. <br/>
+따라서 데이터를 추가하는 시점(`XADD ... [<MAXLEN | MINID> [= | ~] threshold [LIMIT count]]`)이나, 주기적인 백그라운드 작업(`XTRIM`)을 통해서 스트림의 크기를 관리하는 것이 중요하다. <br/><br/>
+
+2. **PEL 관리의 필요성** <br/>
+PEL은 아직 ACK되지 않은 메시지들의 목록을 관리하기 때문에, 시간이 지남에 따라 PEL의 크기가 계속해서 증가할 수 있다. <br/>
+PEL의 크기가 커진다는 의미는 소비자가 메시지를 정상적으로 처리하지 못하고 있다는 것을 의미이기도 하며, Redis의 메모리 사용량이 증가한다는 의미이기도 하다. <br/>
+따라서 애플리케이션 레벨에서 `XPENDING` 명령어를 통해서 PEL의 상태를 주기적으로 모니터링하고, `idle-time`이 일정 시간 이상 경과된 메시지에 대해서는 재처리를 수행하는 로직을 구현하는 것이 좋다. <br/><br/>
+
+3. **Auto Scailing시 주의 사항** <br/>
+오토 스케일링 환경에서의 애플리케이션에서 Redis Stream을 사용할 때, 컨슈머 그룹의 컨슈머 수가 동적으로 변경될 수 있다. <br/>
+컨슈머가 증가하게 되는 경우 컨슈머 이름만 고유하면 되기 때문에 큰 문제가 없지만, 컨슈머가 감소하게 되는 경우에는 PEL에 남아있는 메시지들이 처리되지 못할 수 있다. <br/>
+따라서 오토 스케일링 환경에서 Redis Stream을 사용할 때, 특히 스케일 인 시점에 PEL에 남아있는 메시지들을 적절히 처리할 수 있는 로직을 구현하는 것이 중요하다. <br/>
+Graceful Shutdown을 이용하여 시점에 메시지 수신을 중지(pull 중지)하고, PEL에 남아있는 메시지들을 모두 처리한 이후(남은 로직 수행)에 컨슈머를 종료(`XGROUP DELCONSUMER`)하는 방법이 있다. <br/>
+아니면 PEL에 남아있는 메시지들을 다른 컨슈머에게 재할당(`XCLAIM`)하는 방법도 있다. <br/><br/>
+
+4. **클러스터 환경에서 Stream 파티셔닝 주의사항** <br/>
+Kafka는 하나의 토픽이 여러 파티션으로 나누어져 있기 때문에, 여러 브로커에 걸쳐서 데이터가 분산 저장된다. <br/>
+하지만 Redis Stream은 특정 노드에게만 데이터가 집중될 수 있기 때문에, 성능 증대를 위해서 파티셔닝을 하고자 한다면 해시 슬롯을 고려하여 직접 개발(수동 파티셔닝)을 해야한다. <br/>
+하지만 파티셔닝을 하게 될 경우 Redis Stream의 메시지 순서 보장이 깨질 수 있기 때문에 이를 고려하여 설계해야 한다. <br/><br/>
+
+
+> [Gmarket > Redis Stream 적용기](https://dev.gmarket.com/113) <br/>
 > [Redis Docs > Streams](https://redis.io/docs/latest/develop/data-types/streams)
 
 ### Redis Pub/Sub
@@ -424,13 +542,10 @@ Redis는 데이터 타입 외에도 다양한 기능을 제공하며, 그 중 �
 PUB/SUB는 발행자-구독자 모델을 기반으로 하는 메시징 시스템으로, 발행자가 특정 채널에 메시지를 발행하면 해당 채널을 구독하고 있는 구독자들이 메시지를 수신하는 방식이다. <br/>
 Redis의 Pub/Sub은 최대 한번의 전달(At-Most-Once Delivery) 방식을 사용하며, 만약 구독자가 ***네트워크 장애나 오류로 인하여 메시지를 수신하지 못하는 경우에는 메시지가 손실***될 수 있다. <br/>
 즉, 메시지 브로커(RabbitMQ, Kafka 메시지 보존이, 재전송)와 같은 정교한 메시징 시스템과는 다르게, Redis Pub/Sub은 ***단순한 메시지 전달 기능만을 제공***한다. <br/>
-때문에 메시지 손실이 일어나지 않아야하며 정합성이 중요한 애플리케이션의 경우에는 Redis Pub/Sub을 사용하는 것이 적합하지 않을 수 있다. <br/>
+때문에 ***메시지 손실이 일어나지 않아야하며 정합성이 중요한 애플리케이션의 경우에는 Redis Pub/Sub을 사용하는 것이 적합하지 않을 수 있다.*** <br/>
 
 
 
-### Time Series
-
-### Geospatial
 
 
 > https://redis.io/docs/latest/develop/pubsub/
