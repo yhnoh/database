@@ -1,19 +1,25 @@
 ## Redis Cluster
-- Redis Replication 만을 이용하여 고가용성을 확보하기에는 몇가지 문제가 있었다.
-  - 수동 장애 조치: 하나의 복제본을 마스터로 승격 시키는 작업을 수동으로 진행행야한다.
-  - 클라이언트 연결 문제: 수동 장애 조치 이후 클라이언트는 새로운 마스터 노드로 연결을 다시 시도해야 한다.
-  - 스케일업의 한계: Redis Replication은 하드웨어의 사양을 높이는 방식으로 저장 공간을 확보할 수 있으며 이는 한계지점이 존재한다.
-- Redis Cluster는 Redis Replication 만으로는 해결할 수 없는 문제를 해결하여 고가용성을 확보하고 서비스의 연속성을 보장할 수 있는 기능을 제공한다.
-  - 스케일 아웃 가능
-  - 자동 장애 조치 (Auto Failover)
+Redis Replication 만을 이용하여 고가용성을 확보하기에는 몇가지 문제가 있었다.
+- **_수동 장애 조치_**: 하나의 복제본을 마스터로 승격 시키는 작업을 수동으로 진행야한다.
+- **_클라이언트 연결 문제_**: 수동 장애 조치 이후 클라이언트는 새로운 마스터 노드로 연결을 다시 시도해야 한다.
+- **_스케일업의 한계_**: Redis Replication은 하드웨어의 사양을 높이는 방식으로 저장 공간을 확보할 수 있으며 이는 한계지점이 존재한다.
+
+Redis Cluster는 Redis Replication 만으로는 해결할 수 없는 문제를 해결하여 고가용성을 확보하고 서비스의 연속성을 보장할 수 있는 기능을 제공한다.
+- **_스케일 아웃 및 샤딩_**: 여러 대의 Redis 노드를 클러스터로 구성하여 데이터를 분산 저장하여 데이터 저장 공간을 확장할 수 있다.
+- **_자동 장애 조치 (Auto Failover)_**: 마스터 노드에 장애가 발생할 경우 복제 노드를 자동으로 마스터로 승격시킨다.
+
 
 ### Redis Cluster Architecture
-단일 장애점(Single point of failure)이 없는 토폴로지: 메쉬(Mesh)   ---»   Redis Cluster
-- Redis는 서로가 서로의 노드의 상태를 확인하는 작업을 수행하며 만약 하나의 노드가 장애가 일어나더라도 Slave노드를 Master로 승격시킨다던지, 
-- 일부 노드가 다운되어도 다른 노드에 영향을 주지 않지만, 과반수 이상의 노드가 다운되면 레디스 클러스터는 멈추게 된다.
-- 클라이언트는 어느 노드든지 접속해서 클러스터 구성 정보(슬롯 할당 정보)를 가져와서 보유하며, 입력되는 키(key)에 따라 해당 노드에 접속해서 처리한다.
 
-> [redis > redis-enterprise-cluster-architecture](https://redis.io/redis-enterprise/technology/redis-enterprise-cluster-architecture/)
+Redis Cluster는 여러 대의 Master 노드와 각 Master 노드에 대한 복제본(Slave) 노드로 구성할 수 있으며, **_모든 노드가 서로 연결되어 상태를 공유하고 모니터링_**하는 Full Connected Mesh Topology 구조를 가지고 있다. <br/>
+모든 노드가 서로 연결되어 상태를 공유하고 모니터링하기 때문에, 하나의 노드가 장애가 일어나더라도 **_Slave노드를 Master로 승격시켜 서비스의 연속성을 보장_** 할 수 있다. 물론 과반수 이상의 노드가 다운되면 자동으로 클러스터가 멈추게 된다. <br/>
+Redis Cluster는 MongoDB Cluster와는 다르게 단일 접속 지점이 존재하지 않는다는 특징이 있다. MongoDB Cluster는 Mongos와 Config Server를 통해서 클라이언트의 단일 요청 지점을 제공하며 어디에 데이터를 저장하고 읽을지를 결정하지만, Redis Cluster는 모든 노드가 상태를 공유하기 때문에 **_아무 노드에 접속하여 데이터를 저장하거나 읽을 경우, 해당 노드로 리다이렉션_** 하게 된다. 즉 **_단일 접속 지점이 존재하지 않는다._** 하지만 Config Server라는 단일 장애 지점이 존재하지 않는다는 장점이 있다.  <br/>
+어디에 데이터를 저장할지를 결정하는 중앙 노드가 존재하지 않기 때문에, Redis Cluster는 **_해시 슬롯(Hash Slot)이라는 개념을 사용하여 데이터를 분산 저장_** 한다. 키를 저장할 때, CRC16 알고리즘을 사용하여 0~16383까지의 해시 슬롯 중 하나에 매핑하고, 해당 해시 슬롯을 관리하는 노드에 데이터를 저장한다. 참고로 MongoDB Cluster는 개발자가 직접 샤딩 키(Sharding Key)를 지정하여 데이터를 분산 저장한다. <br/><br/>
+
+즉 정리하자면 Redis Cluster는 다음과 같은 특징이 있다.
+- 모든 노드가 서로 연결되어 상태를 공유하고 모니터링하는 Full Connected Mesh Topology 구조
+- 단일 접속 지점이 존재하지 않고, 어느 노드든 접속하여 리다이렉션을 통해서 데이터 저장 및 읽기 작업 수행
+- 해시 슬롯(Hash Slot)이라는 개념을 사용하여 데이터를 분산 저장
 
 
 ## Redis Cluster 구성 및 사용
@@ -232,6 +238,9 @@ redis-cli --cluster rebalance [host:port] \
 ```
 
 ### Redis Cluster 노드 추가 및 삭제
+
+
+
 
 
 ### Redis Cluster Sharding
