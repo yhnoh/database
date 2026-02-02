@@ -72,7 +72,7 @@ ClusterTopologyRefreshOptions topologyRefreshOptions = ClusterTopologyRefreshOpt
 - enableAllAdaptiveRefreshTriggers(): MOVED_REDIRECT, ASK_REDIRECT, PERSISTENT_RECONNECTS, UNCOVERED_SLOT, UNKNOWN_NODE와 같은 이벤트 발생 시 클러스터 구성 정보를 갱신   
 - adaptiveRefreshTriggersTimeout(): AdaptiveRefreshTriggers가 한번에 발생하는 경우를 방지하기 위하여 일정 시간 동안 갱신을 제한
 
-
+> [AWS Elastic Cache > Best Practices for Clients](https://docs.aws.amazon.com/ko_kr/AmazonElastiCache/latest/dg/BestPractices.Clients-lettuce.html)
 
 ## Redis Cluster 구성 및 사용
 
